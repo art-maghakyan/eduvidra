@@ -1,6 +1,6 @@
 <script setup>
-// Point to the new subfolder
-import logoUrl from '@/Assets/img/logo.png';
+
+import logoUrl from '@img/logo.png';
 
 defineProps({
     className: {
