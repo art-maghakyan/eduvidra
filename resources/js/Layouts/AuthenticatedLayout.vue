@@ -8,6 +8,9 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import { Link } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
+
+const can = (permission) =>
+    !!permission && ($page.props.auth?.user?.permissions ?? []).includes(permission);
 </script>
 
 <template>
@@ -38,6 +41,14 @@ const showingNavigationDropdown = ref(false);
                                     :active="route().current('dashboard')"
                                 >
                                     Dashboard
+                                </NavLink>
+
+                                <NavLink
+                                    v-if="can('admin.access')"
+                                    :href="route('admin.dashboard')"
+                                    :active="route().current('admin.*')"
+                                >
+                                    Admin
                                 </NavLink>
                             </div>
                         </div>
@@ -145,6 +156,14 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('dashboard')"
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+
+                        <ResponsiveNavLink
+                            v-if="can('admin.access')"
+                            :href="route('admin.dashboard')"
+                            :active="route().current('admin.*')"
+                        >
+                            Admin
                         </ResponsiveNavLink>
                     </div>
 
