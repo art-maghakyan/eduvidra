@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Enums\RbacRole;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
@@ -17,9 +18,9 @@ Artisan::command('user:promote-admin {email}', function (string $email) {
         return 1;
     }
 
-    Role::findOrCreate('admin', 'web');
+    Role::findOrCreate(RbacRole::ADMIN->value, 'web');
 
-    $user->assignRole('admin');
+    $user->assignRole(RbacRole::ADMIN->value);
 
     $this->info("Promoted {$user->email} to admin.");
     return 0;

@@ -6,6 +6,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import { Link } from '@inertiajs/vue3';
+import { RbacPermission } from '@/constants/rbac';
 
 const showingNavigationDropdown = ref(false);
 
@@ -44,7 +45,7 @@ const can = (permission) =>
                                 </NavLink>
 
                                 <NavLink
-                                    v-if="can('admin.access')"
+                                    v-if="can(RbacPermission.ADMIN_ACCESS)"
                                     :href="route('admin.dashboard')"
                                     :active="route().current('admin.*')"
                                 >
@@ -159,7 +160,7 @@ const can = (permission) =>
                         </ResponsiveNavLink>
 
                         <ResponsiveNavLink
-                            v-if="can('admin.access')"
+                            v-if="can(RbacPermission.ADMIN_ACCESS)"
                             :href="route('admin.dashboard')"
                             :active="route().current('admin.*')"
                         >

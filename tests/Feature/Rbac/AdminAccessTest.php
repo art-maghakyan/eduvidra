@@ -3,6 +3,7 @@
 namespace Tests\Feature\Rbac;
 
 use App\Models\User;
+use App\Enums\RbacRole;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -16,7 +17,7 @@ class AdminAccessTest extends TestCase
         $this->seed(RbacSeeder::class);
 
         $student = User::factory()->create();
-        $student->assignRole('student');
+        $student->assignRole(RbacRole::STUDENT->value);
 
         $response = $this->actingAs($student)->get('/admin');
 
@@ -28,7 +29,7 @@ class AdminAccessTest extends TestCase
         $this->seed(RbacSeeder::class);
 
         $admin = User::factory()->create();
-        $admin->assignRole('admin');
+        $admin->assignRole(RbacRole::ADMIN->value);
 
         $response = $this->actingAs($admin)->get('/admin');
 

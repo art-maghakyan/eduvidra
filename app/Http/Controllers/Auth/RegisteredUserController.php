@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\RbacRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
@@ -44,7 +45,7 @@ class RegisteredUserController extends Controller
         ]);
 
         // Default role for all new registrations.
-        $user->assignRole('student');
+        $user->assignRole(RbacRole::STUDENT->value);
 
         event(new Registered($user));
 

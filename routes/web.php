@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Enums\RbacPermission;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -15,7 +16,11 @@ Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::middleware(['auth', 'verified', 'permission:admin.access'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware([
+    'auth',
+    'verified',
+    'permission:' . RbacPermission::ADMIN_ACCESS->value,
+])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', function () {
         return Inertia::render('Admin/Dashboard');
     })->name('dashboard');
