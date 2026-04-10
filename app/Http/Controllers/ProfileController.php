@@ -37,6 +37,11 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        // Respect cabinet namespace (admin vs student) for redirects.
+        if ($request->user()?->hasRole(\App\Enums\RbacRole::ADMIN->value)) {
+            return Redirect::route('admin.profile.edit');
+        }
+
         return Redirect::route('profile.edit');
     }
 

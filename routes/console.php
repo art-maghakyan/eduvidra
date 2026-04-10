@@ -20,7 +20,8 @@ Artisan::command('user:promote-admin {email}', function (string $email) {
 
     Role::findOrCreate(RbacRole::ADMIN->value, 'web');
 
-    $user->assignRole(RbacRole::ADMIN->value);
+    // Admin must be admin-only (no student role).
+    $user->syncRoles([RbacRole::ADMIN->value]);
 
     $this->info("Promoted {$user->email} to admin.");
     return 0;

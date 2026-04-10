@@ -4,6 +4,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { RbacPermission } from '@/constants/rbac';
 
 defineProps({
     mustVerifyEmail: {
@@ -14,7 +16,14 @@ defineProps({
     },
 });
 
-const user = usePage().props.auth.user;
+const page = usePage();
+const user = page.props.auth.user;
+const isAdmin = computed(() =>
+    (user.permissions ?? []).includes(RbacPermission.ADMIN_ACCESS),
+);
+const profileUpdateRouteName = computed(() =>
+    isAdmin.value ? 'admin.profile.update' : 'profile.update',
+);
 
 const form = useForm({
     name: user.name,
@@ -35,7 +44,7 @@ const form = useForm({
         </header>
 
         <form
-            @submit.prevent="form.patch(route('profile.update'))"
+            @submit.prevent="form.patch(route(profileUpdateRouteName))"
             class="mt-6 space-y-6"
         >
             <div>

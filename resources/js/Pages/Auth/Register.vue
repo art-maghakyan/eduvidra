@@ -1,9 +1,6 @@
 <script setup>
-import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
+import AuthLayout from '@/Layouts/AuthLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
@@ -21,93 +18,128 @@ const submit = () => {
 </script>
 
 <template>
-    <GuestLayout>
-        <Head title="Register" />
+    <AuthLayout>
+        <Head title="Sign up" />
 
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="name" value="Name" />
-
-                <TextInput
-                    id="name"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.name"
-                    required
-                    autofocus
-                    autocomplete="name"
-                />
-
-                <InputError class="mt-2" :message="form.errors.name" />
+        <!-- Banner -->
+        <div
+            class="relative z-10 overflow-hidden pb-[60px] pt-[120px] md:pt-[130px] lg:pt-[160px] dark:bg-dark"
+        >
+            <div
+                class="absolute bottom-0 left-0 h-px w-full bg-linear-to-r from-stroke/0 via-stroke to-stroke/0 dark:via-dark-3"
+            />
+            <div class="container mx-auto px-4">
+                <div class="-mx-4 flex flex-wrap items-center">
+                    <div class="w-full px-4">
+                        <div class="text-center">
+                            <h1
+                                class="mb-4 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]"
+                            >
+                                Sign up
+                            </h1>
+                            <p class="mb-5 text-base text-body-color dark:text-dark-6">
+                                Create your account.
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </div>
 
-            <div class="mt-4">
-                <InputLabel for="email" value="Email" />
+        <!-- Form card -->
+        <section class="bg-[#F4F7FF] py-14 dark:bg-dark lg:py-[90px]">
+            <div class="container mx-auto px-4">
+                <div class="-mx-4 flex flex-wrap">
+                    <div class="w-full px-4">
+                        <div
+                            class="relative mx-auto max-w-[525px] overflow-hidden rounded-xl bg-white px-8 py-14 text-center shadow-form dark:bg-dark-2 sm:px-12 md:px-[60px]"
+                        >
+                            <div class="mb-8 text-center">
+                                <Link href="/" class="inline-block">
+                                    <span class="text-2xl font-bold text-dark dark:text-white">
+                                        Eduvidra
+                                    </span>
+                                </Link>
+                            </div>
 
-                <TextInput
-                    id="email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    required
-                    autocomplete="username"
-                />
+                            <form @submit.prevent="submit">
+                                <div class="mb-[22px] text-left">
+                                    <input
+                                        id="name"
+                                        type="text"
+                                        placeholder="Name"
+                                        class="w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-body-color outline-hidden transition placeholder:text-dark-6 focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:text-dark-6 dark:focus:border-primary"
+                                        v-model="form.name"
+                                        required
+                                        autofocus
+                                        autocomplete="name"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.name" />
+                                </div>
 
-                <InputError class="mt-2" :message="form.errors.email" />
+                                <div class="mb-[22px] text-left">
+                                    <input
+                                        id="email"
+                                        type="email"
+                                        placeholder="Email"
+                                        class="w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-body-color outline-hidden transition placeholder:text-dark-6 focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:text-dark-6 dark:focus:border-primary"
+                                        v-model="form.email"
+                                        required
+                                        autocomplete="username"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.email" />
+                                </div>
+
+                                <div class="mb-[22px] text-left">
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        placeholder="Password"
+                                        class="w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-body-color outline-hidden transition placeholder:text-dark-6 focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:text-dark-6 dark:focus:border-primary"
+                                        v-model="form.password"
+                                        required
+                                        autocomplete="new-password"
+                                    />
+                                    <InputError class="mt-2" :message="form.errors.password" />
+                                </div>
+
+                                <div class="mb-[22px] text-left">
+                                    <input
+                                        id="password_confirmation"
+                                        type="password"
+                                        placeholder="Confirm password"
+                                        class="w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-body-color outline-hidden transition placeholder:text-dark-6 focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:text-dark-6 dark:focus:border-primary"
+                                        v-model="form.password_confirmation"
+                                        required
+                                        autocomplete="new-password"
+                                    />
+                                    <InputError
+                                        class="mt-2"
+                                        :message="form.errors.password_confirmation"
+                                    />
+                                </div>
+
+                                <div class="mb-6">
+                                    <button
+                                        type="submit"
+                                        class="w-full cursor-pointer rounded-md border border-primary bg-primary px-5 py-3 text-base text-white transition duration-300 ease-in-out hover:bg-blue-dark disabled:opacity-50"
+                                        :disabled="form.processing"
+                                    >
+                                        Sign up
+                                    </button>
+                                </div>
+                            </form>
+
+                            <p class="text-base text-body-secondary">
+                                Already have an account?
+                                <Link :href="route('login')" class="text-primary hover:underline">
+                                    Sign in
+                                </Link>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-
-                <TextInput
-                    id="password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password"
-                    required
-                    autocomplete="new-password"
-                />
-
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel
-                    for="password_confirmation"
-                    value="Confirm Password"
-                />
-
-                <TextInput
-                    id="password_confirmation"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password_confirmation"
-                    required
-                    autocomplete="new-password"
-                />
-
-                <InputError
-                    class="mt-2"
-                    :message="form.errors.password_confirmation"
-                />
-            </div>
-
-            <div class="mt-4 flex items-center justify-end">
-                <Link
-                    :href="route('login')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                    Already registered?
-                </Link>
-
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Register
-                </PrimaryButton>
-            </div>
-        </form>
-    </GuestLayout>
+        </section>
+    </AuthLayout>
 </template>

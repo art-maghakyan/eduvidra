@@ -5,8 +5,10 @@ import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { useForm } from '@inertiajs/vue3';
+import { useForm, usePage } from '@inertiajs/vue3';
 import { nextTick, ref } from 'vue';
+import { computed } from 'vue';
+import { RbacPermission } from '@/constants/rbac';
 
 const confirmingUserDeletion = ref(false);
 const passwordInput = ref(null);
@@ -15,6 +17,15 @@ const form = useForm({
     password: '',
 });
 
+const page = usePage();
+const user = page.props.auth.user;
+const isAdmin = computed(() =>
+    (user.permissions ?? []).includes(RbacPermission.ADMIN_ACCESS),
+);
+const profileDestroyRouteName = computed(() =>
+    isAdmin.value ? 'admin.profile.destroy' : 'profile.destroy',
+);
+
 const confirmUserDeletion = () => {
     confirmingUserDeletion.value = true;
 
@@ -22,7 +33,7 @@ const confirmUserDeletion = () => {
 };
 
 const deleteUser = () => {
-    form.delete(route('profile.destroy'), {
+    form.delete(route(profileDestroyRouteName.value), {
         preserveScroll: true,
         onSuccess: () => closeModal(),
         onError: () => passwordInput.value.focus(),
