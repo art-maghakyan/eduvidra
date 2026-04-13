@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y \
 # Install PHP extensions for Postgres and Laravel
 RUN docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd
 
+# Install Redis PHP extension (phpredis) for cache/queues.
+RUN pecl install redis && docker-php-ext-enable redis
+
 # Get latest Composer from the official image
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
