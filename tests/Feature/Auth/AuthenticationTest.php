@@ -26,8 +26,10 @@ class AuthenticationTest extends TestCase
             'password' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        // Default behavior: 2FA is required for all users, so first successful
+        // password auth redirects to 2FA setup and user isn't fully logged in yet.
+        $this->assertGuest();
+        $response->assertRedirect(route('two-factor.setup', absolute: false));
     }
 
     public function test_users_can_not_authenticate_with_invalid_password(): void

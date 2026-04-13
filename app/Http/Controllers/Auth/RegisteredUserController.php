@@ -47,9 +47,22 @@ class RegisteredUserController extends Controller
         // Default role for all new registrations.
         $user->assignRole(RbacRole::STUDENT->value);
 
+        // Reload so DB defaults (e.g. two_factor_required = true) are present on the model.
+        $user->refresh();
+
         event(new Registered($user));
 
         Auth::login($user);
+
+        // 2FA is required by default: force enrollment immediately after registration.
+        if ($user->two_factor_required && ! $user->two_factor_confirmed_at) {
+            $request->session()->put('2fa:enroll_user_id', $user->id);
+            $request->session()->put('2fa:remember', false);
+
+            Auth::guard('web')->logout();
+
+            return redirect()->route('two-factor.setup');
+        }
 
         return redirect(route('dashboard', absolute: false));
     }

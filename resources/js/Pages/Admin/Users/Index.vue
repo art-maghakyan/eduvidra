@@ -1,13 +1,30 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 
-defineProps({
+const props = defineProps({
     students: {
         type: Array,
         default: () => [],
     },
 });
+
+const requiredForms = new Map();
+
+const getRequiredForm = (student) => {
+    if (!requiredForms.has(student.id)) {
+        requiredForms.set(
+            student.id,
+            useForm({
+                required: !!student.twoFactorRequired,
+            }),
+        );
+    }
+
+    return requiredForms.get(student.id);
+};
+
+const resetForm = useForm({});
 </script>
 
 <template>
@@ -70,6 +87,7 @@ defineProps({
                                     <th scope="col" class="px-6 py-3">Name</th>
                                     <th scope="col" class="px-6 py-3">Email</th>
                                     <th scope="col" class="px-6 py-3">Created</th>
+                                    <th scope="col" class="px-6 py-3">2FA</th>
                                     <th scope="col" class="px-6 py-3">
                                         <span class="sr-only">Actions</span>
                                     </th>
@@ -86,13 +104,65 @@ defineProps({
                                     </th>
                                     <td class="px-6 py-4">{{ s.email }}</td>
                                     <td class="px-6 py-4">{{ s.createdAt ?? '—' }}</td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex flex-col gap-1">
+                                            <span
+                                                class="inline-flex w-fit items-center rounded-md px-2 py-1 text-xs font-medium"
+                                                :class="
+                                                    s.twoFactorRequired
+                                                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                                                "
+                                            >
+                                                {{ s.twoFactorRequired ? 'Required' : 'Not required' }}
+                                            </span>
+                                            <span
+                                                class="inline-flex w-fit items-center rounded-md px-2 py-1 text-xs font-medium"
+                                                :class="
+                                                    s.twoFactorEnrolled
+                                                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                                                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
+                                                "
+                                            >
+                                                {{ s.twoFactorEnrolled ? 'Enrolled' : 'Not enrolled' }}
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td class="px-6 py-4 text-right">
-                                        <Link
-                                            href="#"
-                                            class="font-medium text-primary-700 hover:underline dark:text-primary-400"
-                                        >
-                                            View (soon)
-                                        </Link>
+                                        <div class="flex items-center justify-end gap-3">
+                                            <form
+                                                @submit.prevent="
+                                                    getRequiredForm(s).post(
+                                                        route('admin.users.two-factor.required', s.id),
+                                                        { preserveScroll: true },
+                                                    )
+                                                "
+                                            >
+                                                <label class="inline-flex cursor-pointer items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+                                                    <input
+                                                        type="checkbox"
+                                                        class="h-4 w-4 rounded border-gray-300 text-primary-700 focus:ring-primary-600"
+                                                        v-model="getRequiredForm(s).required"
+                                                    />
+                                                    Require
+                                                </label>
+                                            </form>
+
+                                            <form
+                                                @submit.prevent="
+                                                    resetForm.post(route('admin.users.two-factor.reset', s.id), {
+                                                        preserveScroll: true,
+                                                    })
+                                                "
+                                            >
+                                                <button
+                                                    type="submit"
+                                                    class="text-xs font-medium text-red-700 hover:underline dark:text-red-400"
+                                                >
+                                                    Reset 2FA
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>

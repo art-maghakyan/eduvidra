@@ -35,8 +35,32 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
 
+        if (! $user) {
+            return redirect()->intended(route('dashboard', absolute: false));
+        }
+
+        // 2FA required but not enrolled yet -> force setup at first login.
+        if ($user->two_factor_required && ! $user->two_factor_confirmed_at) {
+            $request->session()->put('2fa:enroll_user_id', $user->id);
+            $request->session()->put('2fa:remember', $request->boolean('remember'));
+
+            Auth::guard('web')->logout();
+
+            return redirect()->route('two-factor.setup');
+        }
+
+        // 2FA enrolled -> challenge on every login.
+        if ($user->two_factor_required && $user->two_factor_confirmed_at) {
+            $request->session()->put('2fa:user_id', $user->id);
+            $request->session()->put('2fa:remember', $request->boolean('remember'));
+
+            Auth::guard('web')->logout();
+
+            return redirect()->route('two-factor.challenge');
+        }
+
         // Default landing per cabinet.
-        if ($user?->hasRole(\App\Enums\RbacRole::ADMIN->value)) {
+        if ($user->hasRole(\App\Enums\RbacRole::ADMIN->value)) {
             return redirect()->intended(route('admin.dashboard', absolute: false));
         }
 

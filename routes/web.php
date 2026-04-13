@@ -29,6 +29,14 @@ Route::middleware([
         ->middleware('permission:' . RbacPermission::USERS_MANAGE->value)
         ->name('users.index');
 
+    Route::post('/users/{user}/two-factor/required', [UserController::class, 'toggleTwoFactorRequired'])
+        ->middleware('permission:' . RbacPermission::USERS_MANAGE->value)
+        ->name('users.two-factor.required');
+
+    Route::post('/users/{user}/two-factor/reset', [UserController::class, 'resetTwoFactor'])
+        ->middleware('permission:' . RbacPermission::USERS_MANAGE->value)
+        ->name('users.two-factor.reset');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

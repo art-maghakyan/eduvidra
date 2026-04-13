@@ -19,7 +19,7 @@ class AdminAccessTest extends TestCase
         $student = User::factory()->create();
         $student->assignRole(RbacRole::STUDENT->value);
 
-        $response = $this->actingAs($student)->get('/admin');
+        $response = $this->actingAs($student)->get('/admin/dashboard');
 
         $response->assertForbidden();
     }
@@ -31,7 +31,7 @@ class AdminAccessTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RbacRole::ADMIN->value);
 
-        $response = $this->actingAs($admin)->get('/admin');
+        $response = $this->actingAs($admin)->get('/admin/dashboard');
 
         $response->assertOk();
     }
