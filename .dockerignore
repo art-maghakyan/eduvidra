@@ -1,0 +1,50 @@
+# VCS
+.git
+.github
+.gitignore
+.gitattributes
+
+# Dependencies (installed inside image)
+node_modules
+/vendor
+
+# Build artifacts (rebuilt inside image)
+/public/build
+/public/hot
+/public/storage
+
+# Local env files (never ship secrets in the image)
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Editor / tooling
+.idea
+.vscode
+.fleet
+.zed
+.nova
+.phpactor.json
+.phpunit.result.cache
+.phpunit.cache
+/.phpunit.cache
+
+# Tests aren't needed in a runtime image
+/tests
+phpunit.xml
+
+# Runtime data that should not be baked into the image
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/testing/*
+/storage/app/public/*
+/storage/app/private/*
+
+# Misc
+Untitled
+*.md
+!README.md

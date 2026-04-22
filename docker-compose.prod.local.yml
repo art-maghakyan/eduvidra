@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-eduvidra_db}
+      POSTGRES_USER: ${DB_USERNAME:-eduvidra}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-eduvidra_secret}
+    volumes:
+      - pgdata_prod_local:/var/lib/postgresql/data
+    networks:
+      - eduvidra-network
+
+  app:
+    depends_on:
+      - redis
+      - db
+
+  queue:
+    depends_on:
+      - redis
+      - db
+
+  scheduler:
+    depends_on:
+      - redis
+      - db
+
+volumes:
+  pgdata_prod_local:

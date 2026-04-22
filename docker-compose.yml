@@ -3,55 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: eduvidra-app
-    volumes:
-      - .:/var/www
-    networks:
-      - eduvidra-network
-    environment:
-      APP_ENV: local
-      DB_CONNECTION: pgsql
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_DATABASE: eduvidra_db
-      DB_USERNAME: dev_user
-      DB_PASSWORD: dev_password
-      QUEUE_CONNECTION: redis
-      CACHE_STORE: redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_CLIENT: phpredis
-
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: eduvidra-nginx
-    depends_on:
-      - app
-    ports:
-      - "8000:80"
-    volumes:
-      - .:/var/www:ro
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    networks:
-      - eduvidra-network
-
-  db:
-    image: postgres:17-alpine
-    container_name: eduvidra-db
-    environment:
-      POSTGRES_DB: eduvidra_db
-      POSTGRES_USER: dev_user
-      POSTGRES_PASSWORD: dev_password
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - eduvidra-network
-    ports:
-      - "5432:5432" # This maps your PostgreSQL port to the Docker port
-
-  redis:
-    image: redis:7-alpine
-    container_name: eduvidra-redis
+      target: app
     networks:
       - eduvidra-network
 
@@ -59,27 +11,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: eduvidra-queue
+      target: app
     depends_on:
-      - db
       - redis
-    volumes:
-      - .:/var/www
-    working_dir: /var/www
-    command: php artisan queue:work redis --sleep=1 --tries=3 --timeout=90
-    environment:
-      APP_ENV: local
-      DB_CONNECTION: pgsql
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_DATABASE: eduvidra_db
-      DB_USERNAME: dev_user
-      DB_PASSWORD: dev_password
-      QUEUE_CONNECTION: redis
-      CACHE_STORE: redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_CLIENT: phpredis
     networks:
       - eduvidra-network
 
@@ -87,51 +21,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: eduvidra-scheduler
+      target: app
     depends_on:
-      - db
       - redis
-    volumes:
-      - .:/var/www
-    working_dir: /var/www
-    command: php artisan schedule:work
-    environment:
-      APP_ENV: local
-      DB_CONNECTION: pgsql
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_DATABASE: eduvidra_db
-      DB_USERNAME: dev_user
-      DB_PASSWORD: dev_password
-      QUEUE_CONNECTION: redis
-      CACHE_STORE: redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_CLIENT: phpredis
     networks:
       - eduvidra-network
 
-  vite:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: eduvidra-vite
-    depends_on:
-      - app
-    volumes:
-      - .:/var/www
-      - vite_node_modules:/var/www/node_modules
-    working_dir: /var/www
-    command: npm run dev -- --host 0.0.0.0
-    ports:
-      - "5173:5173"
+  redis:
+    image: redis:7-alpine
     networks:
       - eduvidra-network
 
 networks:
   eduvidra-network:
     driver: bridge
-
-volumes:
-  pgdata:
-  vite_node_modules:

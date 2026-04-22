@@ -13,6 +13,9 @@ const canAdmin = computed(() =>
   (user.value?.permissions ?? []).includes(RbacPermission.ADMIN_ACCESS),
 );
 
+const primaryDashboardRouteName = computed(() => (canAdmin.value ? 'admin.dashboard' : 'dashboard'));
+const primaryDashboardLabel = computed(() => (canAdmin.value ? 'Go to admin dashboard' : 'Go to dashboard'));
+
 const isDark = ref(false);
 
 const applyTheme = (dark) => {
@@ -273,17 +276,10 @@ watch(isDark, (dark) => applyTheme(dark));
               <div class="hidden sm:flex">
                 <template v-if="isLoggedIn">
                   <Link
-                    :href="route('dashboard')"
+                    :href="route(primaryDashboardRouteName)"
                     class="loginBtn px-[22px] py-2 text-base font-medium text-white hover:opacity-70"
                   >
                     Dashboard
-                  </Link>
-                  <Link
-                    v-if="canAdmin"
-                    :href="route('admin.dashboard')"
-                    class="px-6 py-2 text-base font-medium text-white duration-300 ease-in-out rounded-md bg-white/20 signUpBtn hover:bg-white/100 hover:text-dark"
-                  >
-                    Admin
                   </Link>
                   <Link
                     :href="route('logout')"
@@ -341,18 +337,10 @@ watch(isDark, (dark) => applyTheme(dark));
                 <template v-if="isLoggedIn">
                   <li>
                     <Link
-                      :href="route('dashboard')"
+                      :href="route(primaryDashboardRouteName)"
                       class="inline-flex items-center justify-center rounded-md bg-white px-7 py-[14px] text-center text-base font-medium text-dark shadow-1 transition duration-300 ease-in-out hover:bg-gray-2 hover:text-body-color"
                     >
-                      Go to dashboard
-                    </Link>
-                  </li>
-                  <li v-if="canAdmin">
-                    <Link
-                      :href="route('admin.dashboard')"
-                      class="flex items-center gap-4 rounded-md bg-white/[0.12] px-6 py-[14px] text-base font-medium text-white transition duration-300 ease-in-out hover:bg-white hover:text-dark"
-                    >
-                      Admin cabinet
+                      {{ primaryDashboardLabel }}
                     </Link>
                   </li>
                 </template>

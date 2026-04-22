@@ -1,0 +1,49 @@
+services:
+  app:
+    image: eduvidra-app:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - app_storage:/var/www/storage
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx
+    image: eduvidra-nginx:latest
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    networks:
+      - eduvidra-network
+
+  queue:
+    image: eduvidra-app:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: php artisan queue:work redis --sleep=1 --tries=3 --timeout=90
+    volumes:
+      - app_storage:/var/www/storage
+
+  scheduler:
+    image: eduvidra-app:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: php artisan schedule:work
+    volumes:
+      - app_storage:/var/www/storage
+
+  redis:
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  app_storage:
+  redis_data:
