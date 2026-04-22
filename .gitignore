@@ -22,8 +22,6 @@
 /public/build
 /public/hot
 /public/storage
-/storage
-!/storage/.gitignore
 /storage/*.key
 /storage/pail
 /vendor
