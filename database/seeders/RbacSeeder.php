@@ -29,6 +29,10 @@ class RbacSeeder extends Seeder
         $admin = Role::findOrCreate(RbacRole::ADMIN->value, $guard);
         $student = Role::findOrCreate(RbacRole::STUDENT->value, $guard);
 
+        // Reset cache once more so syncPermissions() sees freshly-created rows,
+        // not a stale cached list from a pre-seed request (Redis cache driver).
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $admin->syncPermissions($permissions);
         $student->syncPermissions([]);
     }
