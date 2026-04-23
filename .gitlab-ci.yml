@@ -45,8 +45,11 @@ deploy:
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
+    - DEPLOY_HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
+    - DEPLOY_USER="$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')"
+    - echo "Deploying to ${DEPLOY_USER}@${DEPLOY_HOST}"
   script:
-    - ssh -i "$SSH_PRIVATE_KEY" "$DEPLOY_USER@$DEPLOY_HOST" 'bash /opt/eduvidra/bin/deploy.sh'
+    - ssh -i "$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" 'bash /opt/eduvidra/bin/deploy.sh'
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   environment:
