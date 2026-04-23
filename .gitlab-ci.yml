@@ -30,7 +30,7 @@ phpunit:
     - cp .env.example .env
     - php artisan key:generate
   script:
-    - php artisan test --parallel
+    - php artisan test
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH
