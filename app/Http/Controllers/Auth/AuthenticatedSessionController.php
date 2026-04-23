@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\RbacRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
@@ -60,7 +61,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         // Default landing per cabinet.
-        if ($user->hasRole(\App\Enums\RbacRole::ADMIN->value)) {
+        if ($user->hasRole(RbacRole::ADMIN->value)) {
             return redirect()->intended(route('admin.dashboard', absolute: false));
         }
 

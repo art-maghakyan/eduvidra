@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Rbac;
 
-use App\Models\User;
 use App\Enums\RbacRole;
+use App\Models\User;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -36,4 +36,3 @@ class AdminAccessTest extends TestCase
         $response->assertOk();
     }
 }
-

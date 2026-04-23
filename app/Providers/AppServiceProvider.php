@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -24,7 +25,7 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         // 30 days (in minutes) for "remember me" cookie duration.
-        /** @var \Illuminate\Auth\SessionGuard $guard */
+        /** @var SessionGuard $guard */
         $guard = Auth::guard('web');
         $guard->setRememberDuration(60 * 24 * 30);
     }

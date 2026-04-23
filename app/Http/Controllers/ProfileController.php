@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RbacRole;
 use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
@@ -38,7 +39,7 @@ class ProfileController extends Controller
         $request->user()->save();
 
         // Respect cabinet namespace (admin vs student) for redirects.
-        if ($request->user()?->hasRole(\App\Enums\RbacRole::ADMIN->value)) {
+        if ($request->user()?->hasRole(RbacRole::ADMIN->value)) {
             return Redirect::route('admin.profile.edit');
         }
 

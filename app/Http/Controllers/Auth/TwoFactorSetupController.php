@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\RbacRole;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -109,11 +110,10 @@ class TwoFactorSetupController extends Controller
 
     private function landingRouteNameFor(User $user): string
     {
-        if ($user->hasRole(\App\Enums\RbacRole::ADMIN->value)) {
+        if ($user->hasRole(RbacRole::ADMIN->value)) {
             return 'admin.dashboard';
         }
 
         return 'dashboard';
     }
 }
-

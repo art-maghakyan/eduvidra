@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\Enums\RbacRole;
+use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
@@ -15,6 +15,7 @@ Artisan::command('user:promote-admin {email}', function (string $email) {
 
     if (! $user) {
         $this->error("User not found for email: {$email}");
+
         return 1;
     }
 
@@ -24,5 +25,6 @@ Artisan::command('user:promote-admin {email}', function (string $email) {
     $user->syncRoles([RbacRole::ADMIN->value]);
 
     $this->info("Promoted {$user->email} to admin.");
+
     return 0;
 })->purpose('Promote an existing user to admin role');

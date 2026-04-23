@@ -37,4 +37,3 @@ class RbacSeeder extends Seeder
         $student->syncPermissions([]);
     }
 }
-
