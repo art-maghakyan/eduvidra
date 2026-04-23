@@ -41,15 +41,21 @@ deploy:
   image: alpine:3.20
   before_script:
     - apk add --no-cache openssh-client bash
-    - chmod 600 "$SSH_PRIVATE_KEY"
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
+    # Copy the key to a tmp file and guarantee a trailing newline
+    # (GitLab's File-type variables sometimes strip the final newline,
+    #  which breaks OpenSSH with "error in libcrypto").
+    - cp "$SSH_PRIVATE_KEY" ~/.ssh/deploy_key
+    - tail -c1 ~/.ssh/deploy_key | read -r _ || echo >> ~/.ssh/deploy_key
+    - chmod 600 ~/.ssh/deploy_key
     - DEPLOY_HOST="$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')"
     - DEPLOY_USER="$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')"
     - echo "Deploying to ${DEPLOY_USER}@${DEPLOY_HOST}"
+    - ssh-keygen -y -f ~/.ssh/deploy_key > /tmp/deploy_key.pub && echo "Key parsed OK"
   script:
-    - ssh -i "$SSH_PRIVATE_KEY" -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" 'bash /opt/eduvidra/bin/deploy.sh'
+    - ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" 'bash /opt/eduvidra/bin/deploy.sh'
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   environment:
