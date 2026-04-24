@@ -61,5 +61,3 @@ docker compose exec app npm run dev
 ```
 
 The app will be available at: `http://localhost`
-
-### 6. Test CI/CD with workflow rules
