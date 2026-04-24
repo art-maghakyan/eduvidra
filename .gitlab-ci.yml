@@ -1,4 +1,5 @@
 stages:
+  - build
   - lint
   - test
   - deploy
@@ -21,6 +22,10 @@ variables:
   # Keep Composer's download cache inside the project dir so GitLab can
   # persist it across runs (runners only cache paths under $CI_PROJECT_DIR).
   COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.cache/composer"
+  # Pre-built CI image (PHP 8.4 CLI + all extensions + Composer) used by
+  # the `phpunit` job. Rebuilt by `build:ci-image` when docker/ci/Dockerfile
+  # changes. Stored in this project's GitLab Container Registry.
+  CI_PHP_IMAGE: $CI_REGISTRY_IMAGE/ci-php:8.4
 
 # Reusable cache for every job that runs `composer install`.
 # Key on composer.lock so the cache auto-invalidates when deps change.
@@ -34,6 +39,26 @@ variables:
     - vendor/
     - .cache/composer/
   policy: pull-push
+
+# ---------- BUILD: CI IMAGE ----------
+# Rebuilds and pushes $CI_PHP_IMAGE only when docker/ci/Dockerfile changes.
+# All other pipelines skip this job and reuse the image from the registry.
+build:ci-image:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  rules:
+    - changes:
+        - docker/ci/Dockerfile
+  before_script:
+    - docker login -u gitlab-ci-token -p "$CI_JOB_TOKEN" "$CI_REGISTRY"
+  script:
+    - docker pull "$CI_PHP_IMAGE" || true
+    - docker build --cache-from "$CI_PHP_IMAGE" -t "$CI_PHP_IMAGE" docker/ci
+    - docker push "$CI_PHP_IMAGE"
 
 # ---------- LINT ----------
 pint:
@@ -49,13 +74,12 @@ pint:
 # ---------- TEST ----------
 phpunit:
   stage: test
-  image: php:8.4-cli
+  image:
+    name: $CI_PHP_IMAGE
+    pull_policy: always
   cache:
     - <<: *composer-cache
   before_script:
-    - apt-get update && apt-get install -y --no-install-recommends git unzip libicu-dev libzip-dev libpng-dev libonig-dev libxml2-dev libsqlite3-dev
-    - docker-php-ext-install -j"$(nproc)" intl zip gd mbstring bcmath pdo_sqlite
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
     - composer install --no-progress --prefer-dist
     - cp .env.example .env
     - php artisan key:generate
