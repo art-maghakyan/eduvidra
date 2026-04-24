@@ -15,12 +15,34 @@ workflow:
 default:
   interruptible: true
 
+variables:
+  COMPOSER_ALLOW_SUPERUSER: "1"
+  COMPOSER_NO_INTERACTION: "1"
+  # Keep Composer's download cache inside the project dir so GitLab can
+  # persist it across runs (runners only cache paths under $CI_PROJECT_DIR).
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.cache/composer"
+
+# Reusable cache for every job that runs `composer install`.
+# Key on composer.lock so the cache auto-invalidates when deps change.
+# Bump the `prefix` (e.g. v1 -> v2) to force a clean cache rebuild.
+.composer-cache: &composer-cache
+  key:
+    files:
+      - composer.lock
+    prefix: composer-v1
+  paths:
+    - vendor/
+    - .cache/composer/
+  policy: pull-push
+
 # ---------- LINT ----------
 pint:
   stage: lint
   image: composer:2
+  cache:
+    - <<: *composer-cache
   before_script:
-    - composer install --no-interaction --no-progress --prefer-dist --no-scripts
+    - composer install --no-progress --prefer-dist --no-scripts
   script:
     - vendor/bin/pint --test
 
@@ -28,11 +50,13 @@ pint:
 phpunit:
   stage: test
   image: php:8.4-cli
+  cache:
+    - <<: *composer-cache
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends git unzip libicu-dev libzip-dev libpng-dev libonig-dev libxml2-dev libsqlite3-dev
     - docker-php-ext-install -j"$(nproc)" intl zip gd mbstring bcmath pdo_sqlite
     - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-    - composer install --no-interaction --no-progress --prefer-dist
+    - composer install --no-progress --prefer-dist
     - cp .env.example .env
     - php artisan key:generate
   script:

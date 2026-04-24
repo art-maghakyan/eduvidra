@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+# Force BuildKit so `--mount=type=cache` in the Dockerfile actually persists
+# composer/npm download caches between deploys.
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 APP_DIR="/opt/eduvidra"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
