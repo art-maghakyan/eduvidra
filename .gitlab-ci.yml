@@ -3,6 +3,15 @@ stages:
   - test
   - deploy
 
+# Pipelines run ONLY in these two cases:
+#  - A merge request is open (validates the MR with lint + tests)
+#  - A push lands on the default branch (master) to deploy
+# Plain feature-branch pushes (no MR) trigger NO pipeline.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 default:
   interruptible: true
 
@@ -14,9 +23,6 @@ pint:
     - composer install --no-interaction --no-progress --prefer-dist --no-scripts
   script:
     - vendor/bin/pint --test
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
 
 # ---------- TEST ----------
 phpunit:
@@ -31,9 +37,6 @@ phpunit:
     - php artisan key:generate
   script:
     - php artisan test
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
 
 # ---------- DEPLOY ----------
 deploy:
