@@ -12,6 +12,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: nginx
+      args:
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-dev}
     image: eduvidra-nginx:latest
     restart: unless-stopped
     depends_on:

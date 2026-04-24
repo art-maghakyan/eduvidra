@@ -13,6 +13,12 @@ cd "$APP_DIR"
 echo "==> git pull"
 git pull --ff-only
 
+# Stamp the frontend with the short commit SHA so the UI footer shows
+# which revision is currently deployed. Picked up by Vite via
+# import.meta.env.VITE_APP_VERSION in resources/js/Components/AppVersion.vue.
+export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
+echo "==> version: $VITE_APP_VERSION"
+
 echo "==> build + up"
 $COMPOSE up -d --build --remove-orphans
 
