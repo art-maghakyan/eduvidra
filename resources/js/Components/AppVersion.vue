@@ -6,6 +6,6 @@ const version = computed(() => import.meta.env.VITE_APP_VERSION || 'dev');
 
 <template>
     <span class="pointer-events-none select-none text-xs opacity-50">
-        v{{ version }}
+        v-{{ version }}
     </span>
 </template>
