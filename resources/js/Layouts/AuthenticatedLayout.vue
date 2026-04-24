@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { RbacPermission } from '@/constants/rbac';
+import AppVersion from '@/Components/AppVersion.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? null);
@@ -341,6 +342,10 @@ watch(isDark, (dark) => applyTheme(dark));
                     <slot />
                 </main>
             </div>
+        </div>
+
+        <div class="pointer-events-none fixed bottom-2 right-3 z-50 text-gray-600 dark:text-gray-300">
+            <AppVersion />
         </div>
     </div>
 </template>

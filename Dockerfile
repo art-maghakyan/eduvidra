@@ -28,6 +28,9 @@ RUN composer dump-autoload --optimize --classmap-authoritative --no-dev
 # =========================================================
 FROM node:20-alpine AS frontend
 
+ARG VITE_APP_VERSION=dev
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
