@@ -10,12 +10,14 @@ FROM composer:2 AS vendor
 WORKDIR /app
 
 COPY composer.json composer.lock ./
-RUN composer install \
-    --no-dev \
-    --prefer-dist \
-    --no-interaction \
-    --no-scripts \
-    --no-autoloader
+RUN --mount=type=cache,target=/tmp/composer-cache,sharing=locked \
+    COMPOSER_CACHE_DIR=/tmp/composer-cache \
+    composer install \
+        --no-dev \
+        --prefer-dist \
+        --no-interaction \
+        --no-scripts \
+        --no-autoloader
 
 COPY . .
 RUN composer dump-autoload --optimize --classmap-authoritative --no-dev
@@ -34,7 +36,8 @@ ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --no-audit --no-fund
 
 COPY . .
 COPY --from=vendor /app/vendor ./vendor
