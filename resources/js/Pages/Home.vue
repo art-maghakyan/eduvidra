@@ -2,6 +2,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
 import { RbacPermission } from '@/constants/rbac';
+import AppVersion from '@/Components/AppVersion.vue';
 
 const brandName = 'Eduvidra';
 const year = new Date().getFullYear();
@@ -1049,4 +1050,8 @@ watch(isDark, (dark) => applyTheme(dark));
       </div>
     </footer>
     <!-- ====== Footer Section End ====== -->
+
+    <div class="pointer-events-none fixed bottom-2 right-3 z-50 text-white">
+        <AppVersion />
+    </div>
 </template>
