@@ -1,27 +1,25 @@
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+  target: app
+  args:
+    VITE_APP_VERSION: ${VITE_APP_VERSION:-dev}
+
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: app
+    build: *app-build
     networks:
       - eduvidra-network
 
   queue:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: app
+    build: *app-build
     depends_on:
       - redis
     networks:
       - eduvidra-network
 
   scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: app
+    build: *app-build
     depends_on:
       - redis
     networks:

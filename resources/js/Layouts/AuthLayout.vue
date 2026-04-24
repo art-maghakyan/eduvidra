@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import { onMounted, ref, watch } from 'vue';
+import AppVersion from '@/Components/AppVersion.vue';
 
 const brandName = 'Eduvidra';
 
@@ -120,6 +121,10 @@ watch(isDark, (dark) => applyTheme(dark));
         </div>
 
         <slot />
+
+        <div class="pointer-events-none fixed bottom-2 right-3 z-50 text-dark dark:text-white">
+            <AppVersion />
+        </div>
     </div>
 </template>
 
