@@ -31,7 +31,15 @@ Eduvidra is a professional SaaS Learning Management System (LMS) designed for st
 │   └── php/
 │       └── opcache.ini          # PHP Opcache settings (prod)
 ├── bin/
-│   └── deploy.sh                # Production deploy script (runs on EC2 via GitLab CI)
+│   ├── deploy.sh                # Production deploy script (runs on EC2 via GitLab CI)
+│   ├── configure-prod-logging-env.sh # Switch prod Laravel logs to stderr
+│   ├── install-cloudwatch-agent.sh # Install/apply CloudWatch Agent on EC2
+│   ├── attach-cloudwatch-policy.sh # Attach IAM policy for CloudWatch Agent/logs
+│   ├── configure-cloudwatch-log-groups.sh # Create log groups + retention
+│   └── create-cloudwatch-alarms.sh # Create core EC2/RDS CloudWatch alarms
+├── ops/
+│   └── cloudwatch/
+│       └── amazon-cloudwatch-agent.json # Host memory/disk/syslog/auth log config
 └── .gitlab-ci.yml               # CI/CD pipeline (build → lint → test → deploy)
 ```
 
@@ -175,6 +183,54 @@ Internet → Elastic IP → EC2 t3.micro (Ubuntu 24.04)
 - **RDS** — `db.t3.micro`, `eu-central-1`, private subnets, SSL required
 - **S3** — `eduvidra-app-uploads`, access via EC2 IAM role (no `AWS_ACCESS_KEY_ID` in `.env`)
 - **Networking** — custom VPC, 2 public + 2 private subnets across 2 AZs
+
+## Monitoring With CloudWatch
+
+Production logging is container-first:
+
+- Laravel logs to `stderr` (`LOG_CHANNEL=stack`, `LOG_STACK=stderr`, `LOG_LEVEL=warning`)
+- Docker sends prod container logs to CloudWatch Logs using the `awslogs` driver
+- CloudWatch Agent sends host memory, disk, `/var/log/syslog`, and `/var/log/auth.log`
+- CloudWatch alarms cover EC2 health/CPU/memory/disk and RDS CPU/storage/connections
+
+### One-time AWS setup
+
+From a machine with AWS CLI permissions:
+
+```bash
+AWS_REGION=eu-central-1 ./bin/attach-cloudwatch-policy.sh
+AWS_REGION=eu-central-1 RETENTION_DAYS=14 ./bin/configure-cloudwatch-log-groups.sh
+```
+
+Create alarms after you know the EC2 instance id and RDS identifier:
+
+```bash
+AWS_REGION=eu-central-1 \
+INSTANCE_ID=i-xxxxxxxxxxxxxxxxx \
+DB_INSTANCE_IDENTIFIER=eduvidra-pg \
+./bin/create-cloudwatch-alarms.sh
+```
+
+Optionally add `SNS_TOPIC_ARN=arn:aws:sns:...` to send alarm notifications.
+
+### One-time EC2 setup
+
+On EC2 from `/opt/eduvidra`:
+
+```bash
+./bin/configure-prod-logging-env.sh
+./bin/install-cloudwatch-agent.sh
+./bin/deploy.sh
+```
+
+After deploy, check:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs app
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs nginx
+```
+
+In AWS Console, check **CloudWatch → Log groups** for `/eduvidra/prod/*`.
 
 ## Version Badge
 

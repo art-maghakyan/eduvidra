@@ -1,3 +1,7 @@
+x-awslogs-options: &awslogs-options
+  awslogs-region: ${AWS_DEFAULT_REGION:-eu-central-1}
+  awslogs-create-group: "true"
+
 services:
   app:
     image: eduvidra-app:latest
@@ -6,6 +10,12 @@ services:
       - .env
     volumes:
       - app_storage:/var/www/storage
+    logging:
+      driver: awslogs
+      options:
+        <<: *awslogs-options
+        awslogs-group: /eduvidra/prod/app
+        awslogs-stream-prefix: app
 
   nginx:
     build:
@@ -22,6 +32,12 @@ services:
       - "80:80"
     networks:
       - eduvidra-network
+    logging:
+      driver: awslogs
+      options:
+        <<: *awslogs-options
+        awslogs-group: /eduvidra/prod/nginx
+        awslogs-stream-prefix: nginx
 
   queue:
     image: eduvidra-app:latest
@@ -31,6 +47,12 @@ services:
     command: php artisan queue:work redis --sleep=1 --tries=3 --timeout=90
     volumes:
       - app_storage:/var/www/storage
+    logging:
+      driver: awslogs
+      options:
+        <<: *awslogs-options
+        awslogs-group: /eduvidra/prod/queue
+        awslogs-stream-prefix: queue
 
   scheduler:
     image: eduvidra-app:latest
@@ -40,11 +62,23 @@ services:
     command: php artisan schedule:work
     volumes:
       - app_storage:/var/www/storage
+    logging:
+      driver: awslogs
+      options:
+        <<: *awslogs-options
+        awslogs-group: /eduvidra/prod/scheduler
+        awslogs-stream-prefix: scheduler
 
   redis:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    logging:
+      driver: awslogs
+      options:
+        <<: *awslogs-options
+        awslogs-group: /eduvidra/prod/redis
+        awslogs-stream-prefix: redis
 
 volumes:
   app_storage:
