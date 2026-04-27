@@ -611,21 +611,36 @@ watch(isDark, (dark) => applyTheme(dark));
             <span class="text-3xl font-normal md:text-[40px]">Get started now</span>
           </h2>
           <p class="mx-auto mb-6 max-w-[515px] text-base leading-[1.5] text-white">
-            Sign in if you already have an account, or register to create one.
+            <template v-if="isLoggedIn">
+              Continue to your dashboard and manage your learning space.
+            </template>
+            <template v-else>
+              Sign in if you already have an account, or register to create one.
+            </template>
           </p>
           <div class="flex flex-wrap items-center justify-center gap-4">
-            <Link
-              :href="route('login')"
-              class="inline-block rounded-md border border-transparent bg-white px-7 py-3 text-base font-medium text-dark transition hover:bg-gray-2"
-            >
-              Sign in
-            </Link>
-            <Link
-              :href="route('register')"
-              class="inline-block rounded-md border border-transparent bg-secondary px-7 py-3 text-base font-medium text-white transition hover:bg-[#0BB489]"
-            >
-              Create account
-            </Link>
+            <template v-if="isLoggedIn">
+              <Link
+                :href="route(primaryDashboardRouteName)"
+                class="inline-block rounded-md border border-transparent bg-white px-7 py-3 text-base font-medium text-dark transition hover:bg-gray-2"
+              >
+                {{ primaryDashboardLabel }}
+              </Link>
+            </template>
+            <template v-else>
+              <Link
+                :href="route('login')"
+                class="inline-block rounded-md border border-transparent bg-white px-7 py-3 text-base font-medium text-dark transition hover:bg-gray-2"
+              >
+                Sign in
+              </Link>
+              <Link
+                :href="route('register')"
+                class="inline-block rounded-md border border-transparent bg-secondary px-7 py-3 text-base font-medium text-white transition hover:bg-[#0BB489]"
+              >
+                Create account
+              </Link>
+            </template>
           </div>
         </div>
       </div>
@@ -1027,16 +1042,25 @@ watch(isDark, (dark) => applyTheme(dark));
             <div class="mb-10 w-full">
               <h4 class="mb-9 text-lg font-semibold text-white">Account</h4>
               <ul class="space-y-3">
-                <li>
-                  <Link :href="route('login')" class="text-base text-white/70 hover:text-white">
-                    Sign in
-                  </Link>
-                </li>
-                <li>
-                  <Link :href="route('register')" class="text-base text-white/70 hover:text-white">
-                    Register
-                  </Link>
-                </li>
+                <template v-if="isLoggedIn">
+                  <li>
+                    <Link :href="route(primaryDashboardRouteName)" class="text-base text-white/70 hover:text-white">
+                      {{ primaryDashboardLabel }}
+                    </Link>
+                  </li>
+                </template>
+                <template v-else>
+                  <li>
+                    <Link :href="route('login')" class="text-base text-white/70 hover:text-white">
+                      Sign in
+                    </Link>
+                  </li>
+                  <li>
+                    <Link :href="route('register')" class="text-base text-white/70 hover:text-white">
+                      Register
+                    </Link>
+                  </li>
+                </template>
               </ul>
             </div>
           </div>
