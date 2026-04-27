@@ -15,7 +15,6 @@ services:
       options:
         <<: *awslogs-options
         awslogs-group: /eduvidra/prod/app
-        awslogs-stream-prefix: app
 
   nginx:
     build:
@@ -37,7 +36,6 @@ services:
       options:
         <<: *awslogs-options
         awslogs-group: /eduvidra/prod/nginx
-        awslogs-stream-prefix: nginx
 
   queue:
     image: eduvidra-app:latest
@@ -52,7 +50,6 @@ services:
       options:
         <<: *awslogs-options
         awslogs-group: /eduvidra/prod/queue
-        awslogs-stream-prefix: queue
 
   scheduler:
     image: eduvidra-app:latest
@@ -67,7 +64,6 @@ services:
       options:
         <<: *awslogs-options
         awslogs-group: /eduvidra/prod/scheduler
-        awslogs-stream-prefix: scheduler
 
   redis:
     restart: unless-stopped
@@ -78,7 +74,6 @@ services:
       options:
         <<: *awslogs-options
         awslogs-group: /eduvidra/prod/redis
-        awslogs-stream-prefix: redis
 
 volumes:
   app_storage:
