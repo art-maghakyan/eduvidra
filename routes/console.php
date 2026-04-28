@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException as BaseRuntimeException;
 use Spatie\Permission\Models\Role;
+use Throwable as BaseThrowable;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -24,7 +26,7 @@ Artisan::command('health:check', function () {
             Cache::put($key, 'ok', 5);
 
             if (Cache::get($key) !== 'ok') {
-                throw new \RuntimeException('Cache read check failed.');
+                throw new BaseRuntimeException('Cache read check failed.');
             }
 
             Cache::forget($key);
@@ -37,7 +39,7 @@ Artisan::command('health:check', function () {
         try {
             $check();
             $this->info("Checking {$name}... OK");
-        } catch (\Throwable $exception) {
+        } catch (BaseThrowable $exception) {
             $failed = true;
             $this->error("Checking {$name}... FAILED");
             $this->line($exception->getMessage());
