@@ -2,19 +2,38 @@ x-awslogs-options: &awslogs-options
   awslogs-region: ${AWS_DEFAULT_REGION:-eu-central-1}
   awslogs-create-group: "true"
 
+x-prod-app: &prod-app
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: app
+    args:
+      VITE_APP_VERSION: ${VITE_APP_VERSION:-dev}
+  image: eduvidra-app:latest
+  restart: unless-stopped
+  env_file:
+    - .env
+  volumes:
+    - app_storage:/var/www/storage
+  networks:
+    - eduvidra-network
+  logging:
+    driver: awslogs
+    options:
+      <<: *awslogs-options
+      awslogs-group: /eduvidra/prod/app
+
 services:
   app:
-    image: eduvidra-app:latest
-    restart: unless-stopped
-    env_file:
-      - .env
-    volumes:
-      - app_storage:/var/www/storage
-    logging:
-      driver: awslogs
-      options:
-        <<: *awslogs-options
-        awslogs-group: /eduvidra/prod/app
+    <<: *prod-app
+    profiles:
+      - legacy
+
+  app-blue:
+    <<: *prod-app
+
+  app-green:
+    <<: *prod-app
 
   nginx:
     build:
@@ -26,7 +45,7 @@ services:
     image: eduvidra-nginx:latest
     restart: unless-stopped
     depends_on:
-      - app
+      - app-blue
     ports:
       - "80:80"
     networks:
