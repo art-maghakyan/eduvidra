@@ -4,11 +4,56 @@ use App\Enums\RbacRole;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Artisan::command('health:check', function () {
+    $checks = [
+        'database' => function (): void {
+            DB::select('select 1');
+        },
+        'cache' => function (): void {
+            $key = 'health-check:'.Str::uuid();
+
+            Cache::put($key, 'ok', 5);
+
+            if (Cache::get($key) !== 'ok') {
+                throw new \RuntimeException('Cache read check failed.');
+            }
+
+            Cache::forget($key);
+        },
+    ];
+
+    $failed = false;
+
+    foreach ($checks as $name => $check) {
+        try {
+            $check();
+            $this->info("Checking {$name}... OK");
+        } catch (\Throwable $exception) {
+            $failed = true;
+            $this->error("Checking {$name}... FAILED");
+            $this->line($exception->getMessage());
+        }
+    }
+
+    if ($failed) {
+        $this->error('Application health check failed.');
+
+        return 1;
+    }
+
+    $this->info('Application health check passed.');
+
+    return 0;
+})->purpose('Check application readiness dependencies');
 
 Artisan::command('user:promote-admin {email}', function (string $email) {
     $user = User::query()->where('email', $email)->first();
