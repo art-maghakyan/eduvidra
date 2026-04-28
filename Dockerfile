@@ -122,7 +122,7 @@ CMD ["php-fpm"]
 FROM nginx:1.27-alpine AS nginx
 
 COPY docker/nginx/prod.conf /etc/nginx/conf.d/default.conf
-COPY docker/nginx/upstream-active.conf /etc/nginx/upstream-active.conf
+COPY docker/nginx/upstream-active.conf /etc/nginx/conf.d/upstream-active.conf
 COPY public /var/www/public
 COPY --from=frontend /app/public/build /var/www/public/build
 
