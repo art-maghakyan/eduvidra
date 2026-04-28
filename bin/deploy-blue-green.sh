@@ -48,7 +48,9 @@ wait_for_php() {
 }
 
 wait_for_nginx() {
-  for _ in {1..30}; do
+  sleep 2
+
+  for _ in {1..60}; do
     if $COMPOSE exec -T nginx sh -c 'true' >/dev/null 2>&1; then
       return 0
     fi
@@ -56,6 +58,10 @@ wait_for_nginx() {
   done
 
   echo "Nginx did not become ready for exec" >&2
+  echo "---- nginx ps ----" >&2
+  $COMPOSE ps nginx >&2 || true
+  echo "---- nginx logs ----" >&2
+  $COMPOSE logs --tail=50 nginx >&2 || true
   return 1
 }
 
