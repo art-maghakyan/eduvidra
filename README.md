@@ -277,5 +277,3 @@ In AWS Console, check **CloudWatch → Log groups** for `/eduvidra/prod/*`.
 ## Version Badge
 
 Every page shows a small version stamp in the bottom-right corner. In dev it reads `vdev`. After each production deploy it shows the short git SHA of the deployed commit (e.g. `v7f3a912`), which is baked in at build time via `VITE_APP_VERSION`.
-
-## Test blue/green way deployment
