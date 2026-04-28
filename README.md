@@ -164,6 +164,48 @@ Composer dependencies are cached between runs, keyed on `composer.lock`.
 6. Clears and warms Laravel caches
 7. Prunes stale Docker images
 
+### Blue/green deploy script (`bin/deploy-blue-green.sh`)
+
+The blue/green deploy flow keeps two PHP-FPM app colors available:
+
+- `app-blue`
+- `app-green`
+
+Nginx stays stable on port 80 and routes PHP requests to the active color through
+`/etc/nginx/conf.d/upstream-active.conf`.
+
+Manual usage on EC2:
+
+```bash
+cd /opt/eduvidra
+./bin/deploy-blue-green.sh
+```
+
+Rollback switches Nginx back to the other color after a health check:
+
+```bash
+cd /opt/eduvidra
+./bin/rollback-blue-green.sh
+```
+
+The deploy script:
+
+1. Pulls latest code
+2. Detects the active color from `.deploy/active-color`
+3. Builds the inactive color
+4. Starts the inactive color
+5. Runs `php artisan health:check`
+6. Runs migrations and warms Laravel caches on the inactive color
+7. Switches Nginx with a graceful reload
+8. Restarts queue/scheduler
+9. Stops the old color after a short grace period
+
+Note: the current Nginx image still contains built frontend assets, so Nginx may
+be recreated when assets/config change. The blue/green switch protects PHP-FPM
+traffic first; fully zero-downtime static asset deploys require a later asset
+strategy such as versioned S3/CloudFront assets or a shared atomic public asset
+directory.
+
 ## AWS Architecture
 
 ```
