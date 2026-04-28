@@ -31,13 +31,11 @@ switch_nginx_to() {
   local color="$1"
   local target="app-$color"
 
-  $COMPOSE exec -T nginx sh -c "printf '%s\n' 'set \$active_app ${target};' > /etc/nginx/conf.d/upstream-active.conf && nginx -t && nginx -s reload"
+  $COMPOSE exec -T nginx sh -c "printf '%s\n' 'set \$active_app ${target};' > /etc/nginx/upstream-active.conf && nginx -t && nginx -s reload"
 }
 
 wait_for_nginx() {
-  sleep 2
-
-  for _ in {1..60}; do
+  for _ in {1..30}; do
     if $COMPOSE exec -T nginx sh -c 'true' >/dev/null 2>&1; then
       return 0
     fi
