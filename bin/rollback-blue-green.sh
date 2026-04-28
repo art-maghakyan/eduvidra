@@ -6,6 +6,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/eduvidra}"
 DEPLOY_DIR="$APP_DIR/.deploy"
 ACTIVE_COLOR_FILE="$DEPLOY_DIR/active-color"
+UPSTREAM_FILE="$DEPLOY_DIR/upstream-active.conf"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 active_color() {
@@ -27,11 +28,15 @@ other_color() {
   esac
 }
 
+write_upstream_file() {
+  local color="$1"
+  printf 'upstream active_app {\n    server app-%s:9000;\n}\n' "$color" > "$UPSTREAM_FILE"
+}
+
 switch_nginx_to() {
   local color="$1"
-  local target="app-$color"
-
-  $COMPOSE exec -T nginx sh -c "printf 'upstream active_app {\n    server ${target}:9000;\n}\n' > /etc/nginx/conf.d/upstream-active.conf && nginx -t && nginx -s reload"
+  write_upstream_file "$color"
+  $COMPOSE exec -T nginx sh -c 'nginx -t && nginx -s reload'
 }
 
 wait_for_nginx() {

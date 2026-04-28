@@ -48,6 +48,8 @@ services:
       - app-blue
     ports:
       - "80:80"
+    volumes:
+      - ./.deploy/upstream-active.conf:/etc/nginx/conf.d/upstream-active.conf:ro
     networks:
       - eduvidra-network
     logging:
