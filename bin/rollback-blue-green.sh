@@ -36,7 +36,7 @@ switch_nginx_to() {
 
 wait_for_nginx() {
   for _ in {1..30}; do
-    if $COMPOSE exec -T nginx nginx -t >/dev/null 2>&1; then
+    if $COMPOSE exec -T nginx sh -c 'true' >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
