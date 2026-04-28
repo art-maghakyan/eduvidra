@@ -63,7 +63,7 @@ switch_nginx_to() {
   local color="$1"
   local target="app-$color"
 
-  $COMPOSE exec -T nginx sh -c "printf 'set \\\$active_app ${target};\n' > /etc/nginx/conf.d/upstream-active.conf && nginx -t && nginx -s reload"
+  $COMPOSE exec -T nginx sh -c "printf '%s\n' 'set \$active_app ${target};' > /etc/nginx/conf.d/upstream-active.conf && nginx -t && nginx -s reload"
 }
 
 echo "==> cd $APP_DIR"
