@@ -47,6 +47,18 @@ wait_for_php() {
   return 1
 }
 
+wait_for_nginx() {
+  for _ in {1..30}; do
+    if $COMPOSE exec -T nginx nginx -t >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Nginx did not become ready for exec" >&2
+  return 1
+}
+
 switch_nginx_to() {
   local color="$1"
   local target="app-$color"
@@ -102,6 +114,7 @@ $COMPOSE exec -T "$INACTIVE_SERVICE" php artisan health:check
 
 echo "==> ensure nginx is running with current config"
 $COMPOSE up -d --no-deps nginx
+wait_for_nginx
 
 echo "==> switch nginx to $INACTIVE_SERVICE"
 switch_nginx_to "$INACTIVE_COLOR"

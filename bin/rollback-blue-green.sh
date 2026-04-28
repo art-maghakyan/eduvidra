@@ -34,6 +34,18 @@ switch_nginx_to() {
   $COMPOSE exec -T nginx sh -c "printf 'set \\\$active_app ${target};\n' > /etc/nginx/conf.d/upstream-active.conf && nginx -t && nginx -s reload"
 }
 
+wait_for_nginx() {
+  for _ in {1..30}; do
+    if $COMPOSE exec -T nginx nginx -t >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Nginx did not become ready for exec" >&2
+  return 1
+}
+
 echo "==> cd $APP_DIR"
 cd "$APP_DIR"
 
@@ -51,6 +63,7 @@ echo "==> health check $ROLLBACK_SERVICE"
 $COMPOSE exec -T "$ROLLBACK_SERVICE" php artisan health:check
 
 echo "==> switch nginx to $ROLLBACK_SERVICE"
+wait_for_nginx
 switch_nginx_to "$ROLLBACK_COLOR"
 printf '%s\n' "$ROLLBACK_COLOR" > "$ACTIVE_COLOR_FILE"
 
