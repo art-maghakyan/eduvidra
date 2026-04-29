@@ -70,7 +70,10 @@ write_upstream_file() {
 }
 
 ensure_upstream_file() {
-  if [[ ! -f "$UPSTREAM_FILE" ]]; then
+  if [[ -d "$UPSTREAM_FILE" ]]; then
+    rm -rf "$UPSTREAM_FILE"
+  fi
+  if [[ ! -s "$UPSTREAM_FILE" ]]; then
     write_upstream_file "$(active_color)"
   fi
 }
@@ -85,8 +88,14 @@ echo "==> cd $APP_DIR"
 cd "$APP_DIR"
 mkdir -p "$DEPLOY_DIR"
 
-echo "==> git pull"
-git pull --ff-only
+# Pull latest code, then re-exec ourselves so bash parses the freshly pulled
+# script (avoids running stale function definitions from before the pull).
+if [[ "${EDUVIDRA_DEPLOY_REEXECED:-0}" != "1" ]]; then
+  echo "==> git pull"
+  git pull --ff-only
+  export EDUVIDRA_DEPLOY_REEXECED=1
+  exec "$0" "$@"
+fi
 
 export VITE_APP_VERSION="$(git rev-parse --short HEAD)"
 echo "==> version: $VITE_APP_VERSION"

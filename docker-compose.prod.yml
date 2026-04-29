@@ -49,7 +49,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./.deploy/upstream-active.conf:/etc/nginx/conf.d/upstream-active.conf:ro
+      - ./.deploy/upstream-active.conf:/etc/nginx/conf.d/upstream-active.conf
     networks:
       - eduvidra-network
     logging:
