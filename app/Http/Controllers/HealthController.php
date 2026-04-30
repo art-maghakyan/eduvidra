@@ -53,4 +53,3 @@ class HealthController extends Controller
             ->header('Cache-Control', 'no-store, private');
     }
 }
-
