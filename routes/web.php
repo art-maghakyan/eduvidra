@@ -3,9 +3,12 @@
 use App\Enums\RbacPermission;
 use App\Enums\RbacRole;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Route::get('/health', HealthController::class)->name('health');
 
 Route::get('/', function () {
     return Inertia::render('Home');

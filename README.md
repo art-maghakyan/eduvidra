@@ -174,6 +174,25 @@ The blue/green deploy flow keeps two PHP-FPM app colors available:
 Nginx stays stable on port 80 and routes PHP requests to the active color through
 `/etc/nginx/conf.d/upstream-active.conf`.
 
+### Health endpoint (`GET /health`)
+
+The application exposes an HTTP health endpoint intended for deploy checks and
+external monitoring.
+
+- **Healthy**: returns `200` with JSON body: `{"ok": true, ...}`
+- **Unhealthy**: returns `503` with JSON body: `{"ok": false, ...}`
+
+Examples:
+
+```bash
+# From the EC2 instance (via Nginx in the container)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T nginx \
+  wget -qO- -S http://127.0.0.1/health 2>&1 | head -20
+
+# From your laptop (replace with your Elastic IP / host)
+curl -i http://YOUR_EC2_IP/health
+```
+
 Manual usage on EC2:
 
 ```bash
