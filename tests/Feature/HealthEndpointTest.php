@@ -31,4 +31,3 @@ class HealthEndpointTest extends TestCase
             ]);
     }
 }
-
