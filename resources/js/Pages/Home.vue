@@ -8,6 +8,7 @@ const brandName = 'Eduvidra';
 const year = new Date().getFullYear();
 
 const page = usePage();
+const seo = computed(() => page.props.seo);
 const user = computed(() => page.props.auth?.user ?? null);
 const isLoggedIn = computed(() => !!user.value);
 const canAdmin = computed(() =>
@@ -41,7 +42,20 @@ watch(isDark, (dark) => applyTheme(dark));
 </script>
 
 <template>
-    <Head title="Home" />
+    <Head :title="seo.title">
+        <meta head-key="description" name="description" :content="seo.description" />
+        <link head-key="canonical" rel="canonical" :href="seo.canonical" />
+        <meta head-key="og:type" property="og:type" :content="seo.type" />
+        <meta head-key="og:site_name" property="og:site_name" :content="seo.site_name" />
+        <meta head-key="og:title" property="og:title" :content="seo.title" />
+        <meta head-key="og:description" property="og:description" :content="seo.description" />
+        <meta head-key="og:url" property="og:url" :content="seo.url" />
+        <meta head-key="og:image" property="og:image" :content="seo.image" />
+        <meta head-key="twitter:card" name="twitter:card" content="summary_large_image" />
+        <meta head-key="twitter:title" name="twitter:title" :content="seo.title" />
+        <meta head-key="twitter:description" name="twitter:description" :content="seo.description" />
+        <meta head-key="twitter:image" name="twitter:image" :content="seo.image" />
+    </Head>
 
     <div
       class="absolute top-0 left-0 z-40 flex items-center w-full bg-transparent ud-header"
@@ -324,7 +338,7 @@ watch(isDark, (dark) => applyTheme(dark));
               <h1
                 class="mb-6 text-3xl font-bold leading-snug text-white sm:text-4xl sm:leading-snug lg:text-5xl lg:leading-[1.2]"
               >
-                Eduvidra platform for students and admins
+                Eduvidra platform for students
               </h1>
 
               <p
@@ -386,8 +400,8 @@ watch(isDark, (dark) => applyTheme(dark));
                 What you can do in Eduvidra
               </h2>
               <p class="text-base text-body-color dark:text-dark-6">
-                A unified experience for students and admins, built with clear
-                navigation and consistent UI.
+                A unified experience for students, built with clear navigation
+                and consistent UI.
               </p>
             </div>
           </div>
@@ -419,7 +433,7 @@ watch(isDark, (dark) => applyTheme(dark));
                 Clean navigation
               </h4>
               <p class="mb-8 text-body-color dark:text-dark-6 lg:mb-9">
-                Students and admins share one design system and layout patterns.
+                A consistent design system and layout patterns built for students.
               </p>
               <a
                 href="#"

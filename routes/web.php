@@ -5,14 +5,20 @@ use App\Enums\RbacRole;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RobotsController;
+use App\Http\Controllers\SitemapController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/health', HealthController::class)->name('health');
 
+Route::get('/robots.txt', RobotsController::class)->name('robots');
+
+Route::get('/sitemap.xml', SitemapController::class)->name('sitemap');
+
 Route::get('/', function () {
     return Inertia::render('Home');
-});
+})->name('home');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');

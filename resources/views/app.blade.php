@@ -4,7 +4,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        @php($seo = \App\Support\Seo::forRequest(request()))
+        <title inertia>{{ $seo['title'] }}</title>
+
+        @include('partials.seo-meta', ['seo' => $seo])
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
