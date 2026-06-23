@@ -58,6 +58,7 @@ class RegisteredUserController extends Controller
         if ($user->two_factor_required && ! $user->two_factor_confirmed_at) {
             $request->session()->put('2fa:enroll_user_id', $user->id);
             $request->session()->put('2fa:remember', false);
+            $request->session()->put('just_registered', true);
 
             Auth::guard('web')->logout();
 

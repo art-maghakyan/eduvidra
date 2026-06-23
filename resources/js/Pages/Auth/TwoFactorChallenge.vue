@@ -2,10 +2,15 @@
 import InputError from '@/Components/InputError.vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { onMounted, ref } from 'vue';
+
+const codeInput = ref(null);
 
 const form = useForm({
     code: '',
 });
+
+onMounted(() => codeInput.value?.focus());
 
 const submit = () => {
     form.post(route('two-factor.challenge.store'), {
@@ -51,13 +56,13 @@ const submit = () => {
                                 <div class="mb-[22px] text-left">
                                     <input
                                         id="code"
+                                        ref="codeInput"
                                         inputmode="numeric"
                                         autocomplete="one-time-code"
                                         placeholder="123456"
                                         class="w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-body-color outline-hidden transition placeholder:text-dark-6 focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:text-dark-6 dark:focus:border-primary"
                                         v-model="form.code"
                                         required
-                                        autofocus
                                     />
                                     <InputError class="mt-2" :message="form.errors.code" />
                                 </div>
