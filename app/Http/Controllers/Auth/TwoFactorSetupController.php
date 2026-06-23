@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Auth;
 
 use App\Enums\RbacRole;
 use App\Http\Controllers\Controller;
+use App\Mail\WelcomeEmail;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -83,6 +85,17 @@ class TwoFactorSetupController extends Controller
         $request->session()->regenerate();
 
         Auth::login($user, $remember);
+
+        if ($request->session()->pull('just_registered') && $user->hasRole(RbacRole::STUDENT->value)) {
+            try {
+                Mail::to($user)->queue(new WelcomeEmail($user));
+            } catch (\Throwable $e) {
+                logger()->error('Failed to queue welcome email', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return redirect()->intended(route($this->landingRouteNameFor($user), absolute: false));
     }

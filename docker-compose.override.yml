@@ -11,6 +11,10 @@ x-app-environment: &app-environment
   REDIS_HOST: redis
   REDIS_PORT: 6379
   REDIS_CLIENT: phpredis
+  MAIL_MAILER: smtp
+  MAIL_HOST: smtp.gmail.com
+  MAIL_PORT: 587
+  MAIL_ENCRYPTION: tls
 
 x-app-depends-on: &app-depends-on
   - db
