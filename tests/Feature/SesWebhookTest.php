@@ -15,12 +15,12 @@ class SesWebhookTest extends TestCase
     private function bouncePayload(string $bounceType, string $bounceSubType, array $emails): array
     {
         return [
-            'Type'    => 'Notification',
+            'Type' => 'Notification',
             'Message' => json_encode([
                 'notificationType' => 'Bounce',
-                'bounce'           => [
-                    'bounceType'        => $bounceType,
-                    'bounceSubType'     => $bounceSubType,
+                'bounce' => [
+                    'bounceType' => $bounceType,
+                    'bounceSubType' => $bounceSubType,
                     'bouncedRecipients' => array_map(fn ($e) => ['emailAddress' => $e], $emails),
                 ],
             ]),
@@ -30,10 +30,10 @@ class SesWebhookTest extends TestCase
     private function complaintPayload(array $emails): array
     {
         return [
-            'Type'    => 'Notification',
+            'Type' => 'Notification',
             'Message' => json_encode([
                 'notificationType' => 'Complaint',
-                'complaint'        => [
+                'complaint' => [
                     'complainedRecipients' => array_map(fn ($e) => ['emailAddress' => $e], $emails),
                 ],
             ]),
@@ -45,7 +45,7 @@ class SesWebhookTest extends TestCase
         Http::fake(['https://sns.*' => Http::response('', 200)]);
 
         $response = $this->postJson('/webhooks/ses', [
-            'Type'         => 'SubscriptionConfirmation',
+            'Type' => 'SubscriptionConfirmation',
             'SubscribeURL' => 'https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription&Token=abc',
         ]);
 
@@ -56,7 +56,7 @@ class SesWebhookTest extends TestCase
     public function test_subscription_confirmation_rejects_invalid_url(): void
     {
         $response = $this->postJson('/webhooks/ses', [
-            'Type'         => 'SubscriptionConfirmation',
+            'Type' => 'SubscriptionConfirmation',
             'SubscribeURL' => 'http://evil.example.com/steal',
         ]);
 
@@ -89,8 +89,8 @@ class SesWebhookTest extends TestCase
 
         $response->assertOk();
         $this->assertDatabaseHas('email_suppressions', [
-            'email'   => 'angry@example.com',
-            'type'    => 'complaint',
+            'email' => 'angry@example.com',
+            'type' => 'complaint',
             'subtype' => null,
         ]);
     }
@@ -98,8 +98,8 @@ class SesWebhookTest extends TestCase
     public function test_duplicate_suppression_is_idempotent(): void
     {
         EmailSuppression::create([
-            'email'   => 'dup@example.com',
-            'type'    => SuppressionType::BOUNCE,
+            'email' => 'dup@example.com',
+            'type' => SuppressionType::BOUNCE,
             'subtype' => 'General',
         ]);
 

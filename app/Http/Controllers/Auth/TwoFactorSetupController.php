@@ -91,7 +91,7 @@ class TwoFactorSetupController extends Controller
             if (EmailSuppression::isSuppressed($user->email)) {
                 logger()->warning('Welcome email skipped — address is suppressed', [
                     'user_id' => $user->id,
-                    'email'   => $user->email,
+                    'email' => $user->email,
                 ]);
             } else {
                 try {
@@ -99,7 +99,7 @@ class TwoFactorSetupController extends Controller
                 } catch (\Throwable $e) {
                     logger()->error('Failed to queue welcome email', [
                         'user_id' => $user->id,
-                        'error'   => $e->getMessage(),
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }

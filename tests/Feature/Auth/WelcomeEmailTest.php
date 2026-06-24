@@ -108,15 +108,15 @@ class WelcomeEmailTest extends TestCase
         Mail::fake();
 
         $user = User::factory()->create([
-            'two_factor_required'     => true,
+            'two_factor_required' => true,
             'two_factor_confirmed_at' => null,
-            'two_factor_secret'       => null,
+            'two_factor_secret' => null,
         ]);
         $user->assignRole(RbacRole::STUDENT->value);
 
         EmailSuppression::create([
-            'email'   => $user->email,
-            'type'    => SuppressionType::BOUNCE,
+            'email' => $user->email,
+            'type' => SuppressionType::BOUNCE,
             'subtype' => 'General',
         ]);
 
@@ -124,8 +124,8 @@ class WelcomeEmailTest extends TestCase
 
         $this->withSession([
             '2fa:enroll_user_id' => $user->id,
-            '2fa:enroll_secret'  => $secret,
-            'just_registered'    => true,
+            '2fa:enroll_secret' => $secret,
+            'just_registered' => true,
         ]);
 
         $this->post('/two-factor/setup', [

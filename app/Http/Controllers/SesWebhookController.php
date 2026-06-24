@@ -21,8 +21,8 @@ class SesWebhookController extends Controller
 
         return match ($payload['Type']) {
             'SubscriptionConfirmation' => $this->handleSubscriptionConfirmation($payload),
-            'Notification'             => $this->handleNotification($payload),
-            default                    => response()->json(['error' => 'Unknown type'], 400),
+            'Notification' => $this->handleNotification($payload),
+            default => response()->json(['error' => 'Unknown type'], 400),
         };
     }
 
@@ -50,9 +50,9 @@ class SesWebhookController extends Controller
         }
 
         match ($message['notificationType'] ?? null) {
-            'Bounce'    => $this->processBounce($message),
+            'Bounce' => $this->processBounce($message),
             'Complaint' => $this->processComplaint($message),
-            default     => null,
+            default => null,
         };
 
         return response()->json(['status' => 'ok']);
@@ -60,9 +60,9 @@ class SesWebhookController extends Controller
 
     private function processBounce(array $message): void
     {
-        $bounceType    = $message['bounce']['bounceType']    ?? null;
+        $bounceType = $message['bounce']['bounceType'] ?? null;
         $bounceSubType = $message['bounce']['bounceSubType'] ?? null;
-        $recipients    = $message['bounce']['bouncedRecipients'] ?? [];
+        $recipients = $message['bounce']['bouncedRecipients'] ?? [];
 
         if ($bounceType !== 'Permanent') {
             return;
@@ -80,7 +80,7 @@ class SesWebhookController extends Controller
             );
 
             Log::warning('Email suppressed due to hard bounce', [
-                'email'   => $email,
+                'email' => $email,
                 'subtype' => $bounceSubType,
             ]);
         }
