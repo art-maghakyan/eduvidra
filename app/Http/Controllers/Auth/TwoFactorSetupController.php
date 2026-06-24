@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Enums\RbacRole;
 use App\Http\Controllers\Controller;
 use App\Mail\WelcomeEmail;
+use App\Models\EmailSuppression;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -87,13 +88,20 @@ class TwoFactorSetupController extends Controller
         Auth::login($user, $remember);
 
         if ($request->session()->pull('just_registered') && $user->hasRole(RbacRole::STUDENT->value)) {
-            try {
-                Mail::to($user)->queue(new WelcomeEmail($user));
-            } catch (\Throwable $e) {
-                logger()->error('Failed to queue welcome email', [
+            if (EmailSuppression::isSuppressed($user->email)) {
+                logger()->warning('Welcome email skipped — address is suppressed', [
                     'user_id' => $user->id,
-                    'error' => $e->getMessage(),
+                    'email'   => $user->email,
                 ]);
+            } else {
+                try {
+                    Mail::to($user)->queue(new WelcomeEmail($user));
+                } catch (\Throwable $e) {
+                    logger()->error('Failed to queue welcome email', [
+                        'user_id' => $user->id,
+                        'error'   => $e->getMessage(),
+                    ]);
+                }
             }
         }
 

@@ -3,7 +3,9 @@
 namespace Tests\Feature\Auth;
 
 use App\Enums\RbacRole;
+use App\Enums\SuppressionType;
 use App\Mail\WelcomeEmail;
+use App\Models\EmailSuppression;
 use App\Models\User;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,6 +94,38 @@ class WelcomeEmailTest extends TestCase
             '2fa:enroll_user_id' => $user->id,
             '2fa:enroll_secret' => $secret,
             'just_registered' => true,
+        ]);
+
+        $this->post('/two-factor/setup', [
+            'code' => Google2FA::getCurrentOtp($secret),
+        ]);
+
+        Mail::assertNothingQueued();
+    }
+
+    public function test_welcome_email_is_not_queued_for_suppressed_address(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create([
+            'two_factor_required'     => true,
+            'two_factor_confirmed_at' => null,
+            'two_factor_secret'       => null,
+        ]);
+        $user->assignRole(RbacRole::STUDENT->value);
+
+        EmailSuppression::create([
+            'email'   => $user->email,
+            'type'    => SuppressionType::BOUNCE,
+            'subtype' => 'General',
+        ]);
+
+        $secret = Google2FA::generateSecretKey();
+
+        $this->withSession([
+            '2fa:enroll_user_id' => $user->id,
+            '2fa:enroll_secret'  => $secret,
+            'just_registered'    => true,
         ]);
 
         $this->post('/two-factor/setup', [
