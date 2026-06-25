@@ -52,7 +52,7 @@ const submit = () => {
                         <div
                             class="relative mx-auto max-w-[525px] overflow-hidden rounded-lg bg-white px-8 py-14 text-center shadow-form dark:bg-dark-2 sm:px-12 md:px-[60px]"
                         >
-                            <form @submit.prevent="submit">
+                            <form @submit.prevent="submit" novalidate>
                                 <div class="mb-[22px] text-left">
                                     <input
                                         id="code"

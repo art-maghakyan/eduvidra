@@ -1,6 +1,5 @@
 <script setup>
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
-import AppVersion from '@/Components/AppVersion.vue';
 import { Link } from '@inertiajs/vue3';
 </script>
 
@@ -18,10 +17,6 @@ import { Link } from '@inertiajs/vue3';
             class="mt-6 w-full overflow-hidden bg-white px-6 py-4 shadow-md sm:max-w-md sm:rounded-lg"
         >
             <slot />
-        </div>
-
-        <div class="pointer-events-none fixed bottom-2 right-3 z-50 text-gray-700">
-            <AppVersion />
         </div>
     </div>
 </template>

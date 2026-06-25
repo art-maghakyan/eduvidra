@@ -26,7 +26,7 @@ const submit = () => {
             password before continuing.
         </div>
 
-        <form @submit.prevent="submit">
+        <form @submit.prevent="submit" novalidate>
             <div>
                 <InputLabel for="password" value="Password" />
                 <TextInput

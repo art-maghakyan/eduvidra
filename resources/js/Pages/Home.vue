@@ -2,7 +2,6 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
 import { RbacPermission } from '@/constants/rbac';
-import AppVersion from '@/Components/AppVersion.vue';
 
 const brandName = 'Eduvidra';
 const year = new Date().getFullYear();
@@ -116,10 +115,10 @@ watch(isDark, (dark) => applyTheme(dark));
                   </li>
                   <li class="relative group">
                     <a
-                      href="#team"
+                      href="#blog"
                       class="flex py-2 mx-8 text-base font-medium ud-menu-scroll text-dark group-hover:text-primary dark:text-white lg:ml-7 lg:mr-0 lg:inline-flex lg:px-0 lg:py-6 lg:text-white lg:group-hover:text-white lg:group-hover:opacity-70 xl:ml-10"
                     >
-                      Team
+                      Updates
                     </a>
                   </li>
                   <li class="relative group">
@@ -129,87 +128,6 @@ watch(isDark, (dark) => applyTheme(dark));
                     >
                       Contact
                     </a>
-                  </li>
-                  <li class="relative group">
-                    <a
-                      href="blog-grids.html"
-                      class="flex py-2 mx-8 text-base font-medium ud-menu-scroll text-dark group-hover:text-primary dark:text-white lg:ml-7 lg:mr-0 lg:inline-flex lg:px-0 lg:py-6 lg:text-white lg:group-hover:text-white lg:group-hover:opacity-70 xl:ml-10"
-                    >
-                      Blog
-                    </a>
-                  </li>
-                  <li class="relative submenu-item group">
-                    <a
-                      href="javascript:void(0)"
-                      class="relative flex items-center justify-between py-2 mx-8 text-base font-medium text-dark group-hover:text-primary dark:text-white lg:ml-8 lg:mr-0 lg:inline-flex lg:py-6 lg:pl-0 lg:pr-4 lg:text-white lg:group-hover:text-white lg:group-hover:opacity-70 xl:ml-10"
-                    >
-                      Pages
-
-                      <svg
-                        class="ml-2 fill-current"
-                        width="16"
-                        height="20"
-                        viewBox="0 0 16 20"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M7.99999 14.9C7.84999 14.9 7.72499 14.85 7.59999 14.75L1.84999 9.10005C1.62499 8.87505 1.62499 8.52505 1.84999 8.30005C2.07499 8.07505 2.42499 8.07505 2.64999 8.30005L7.99999 13.525L13.35 8.25005C13.575 8.02505 13.925 8.02505 14.15 8.25005C14.375 8.47505 14.375 8.82505 14.15 9.05005L8.39999 14.7C8.27499 14.825 8.14999 14.9 7.99999 14.9Z"
-                        />
-                      </svg>
-                    </a>
-                    <div
-                      class="submenu relative left-0 top-full hidden w-[250px] rounded-xs bg-white p-4 transition-[top] duration-300 group-hover:opacity-100 dark:bg-dark-2 lg:invisible lg:absolute lg:top-[110%] lg:block lg:opacity-0 lg:shadow-lg lg:group-hover:visible lg:group-hover:top-full"
-                    >
-                      <a
-                        href="about.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        About Page
-                      </a>
-                      <a
-                        href="pricing.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        Pricing Page
-                      </a>
-                      <a
-                        href="contact.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        Contact Page
-                      </a>
-                      <a
-                        href="blog-grids.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        Blog Grid Page
-                      </a>
-                      <a
-                        href="blog-details.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        Blog Details Page
-                      </a>
-                      <a
-                        href="signup.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        Sign Up Page
-                      </a>
-                      <a
-                        href="signin.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        Sign In Page
-                      </a>
-                      <a
-                        href="404.html"
-                        class="block rounded-sm px-4 py-[10px] text-sm text-body-color hover:text-primary dark:text-dark-6 dark:hover:text-primary"
-                      >
-                        404 Page
-                      </a>
-                    </div>
                   </li>
                 </ul>
               </nav>
@@ -338,14 +256,15 @@ watch(isDark, (dark) => applyTheme(dark));
               <h1
                 class="mb-6 text-3xl font-bold leading-snug text-white sm:text-4xl sm:leading-snug lg:text-5xl lg:leading-[1.2]"
               >
-                Eduvidra platform for students
+                Learn online, at your own pace
               </h1>
 
               <p
                 class="mx-auto mb-9 max-w-[600px] text-base font-medium text-white sm:text-lg sm:leading-[1.44]"
               >
-                Sign in to access your cabinet. New here? Create an account in a
-                minute.
+                Eduvidra brings your courses, lessons, and progress together in
+                one simple dashboard — so you can focus on learning, not finding
+                your way around.
               </p>
 
               <ul class="mb-10 flex flex-wrap items-center justify-center gap-5">
@@ -397,11 +316,11 @@ watch(isDark, (dark) => applyTheme(dark));
               <h2
                 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]"
               >
-                What you can do in Eduvidra
+                Everything you need to keep learning
               </h2>
               <p class="text-base text-body-color dark:text-dark-6">
-                A unified experience for students, built with clear navigation
-                and consistent UI.
+                From your first lesson to your latest course, Eduvidra keeps the
+                experience simple, organized, and yours.
               </p>
             </div>
           </div>
@@ -430,13 +349,14 @@ watch(isDark, (dark) => applyTheme(dark));
                 </svg>
               </div>
               <h4 class="mb-3 text-xl font-bold text-dark dark:text-white">
-                Clean navigation
+                Structured courses
               </h4>
               <p class="mb-8 text-body-color dark:text-dark-6 lg:mb-9">
-                A consistent design system and layout patterns built for students.
+                Work through courses and lessons in a clear order, so you always
+                know what comes next.
               </p>
               <a
-                href="#"
+                href="#about"
                 class="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
               >
                 Learn more
@@ -470,14 +390,14 @@ watch(isDark, (dark) => applyTheme(dark));
                 </svg>
               </div>
               <h4 class="mb-3 text-xl font-bold text-dark dark:text-white">
-                Role-ready UI
+                Track your progress
               </h4>
               <p class="mb-8 text-body-color dark:text-dark-6 lg:mb-9">
-                Start with one sidebar style; later hide/show items by
-                permission.
+                Pick up right where you left off and see how far you've come at a
+                glance.
               </p>
               <a
-                href="#"
+                href="#about"
                 class="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
               >
                 Learn more
@@ -507,14 +427,14 @@ watch(isDark, (dark) => applyTheme(dark));
                 </svg>
               </div>
               <h4 class="mb-3 text-xl font-bold text-dark dark:text-white">
-                Consistent styling
+                One personal dashboard
               </h4>
               <p class="mb-8 text-body-color dark:text-dark-6 lg:mb-9">
-                Landing, auth, student, and admin pages can share the same color
-                tokens.
+                Your courses, schedule, and materials live together in a single,
+                tidy place.
               </p>
               <a
-                href="#"
+                href="#about"
                 class="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
               >
                 Learn more
@@ -544,14 +464,14 @@ watch(isDark, (dark) => applyTheme(dark));
                 </svg>
               </div>
               <h4 class="mb-3 text-xl font-bold text-dark dark:text-white">
-                Secure access
+                Secure by default
               </h4>
               <p class="mb-8 text-body-color dark:text-dark-6 lg:mb-9">
-                Your RBAC already gates admin routes; the UI can follow the same
-                permissions.
+                Two-factor authentication keeps your account and your work safe,
+                every time you sign in.
               </p>
               <a
-                href="#"
+                href="#about"
                 class="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
               >
                 Learn more
@@ -572,15 +492,19 @@ watch(isDark, (dark) => applyTheme(dark));
         <div class="flex flex-wrap items-center -mx-4">
           <div class="w-full px-4 lg:w-1/2">
             <div class="mb-12 max-w-[540px] lg:mb-0">
+              <span class="mb-2 block text-lg font-semibold text-primary">
+                About Eduvidra
+              </span>
               <h2
                 class="mb-5 text-3xl font-bold leading-tight text-dark dark:text-white sm:text-[40px] sm:leading-[1.2]"
               >
-                A modern platform experience.
+                A learning experience built around you.
               </h2>
               <p class="mb-10 text-base leading-relaxed text-body-color dark:text-dark-6">
-                This page is built from the Play Tailwind template, adapted to
-                Inertia + Vue so you can reuse the same styling for the student
-                and admin cabinets.
+                Eduvidra is an online learning platform that keeps everything in
+                one place. Sign in to your personal dashboard, continue your
+                courses, and learn at a pace that works for you — on any device,
+                whenever you have time.
               </p>
 
               <Link
@@ -593,23 +517,46 @@ watch(isDark, (dark) => applyTheme(dark));
           </div>
 
           <div class="w-full px-4 lg:w-1/2">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="h-56 rounded-xl bg-white/60 shadow-1 dark:bg-dark" />
-              <div class="h-56 rounded-xl bg-white/60 shadow-1 dark:bg-dark" />
-              <div
-                class="col-span-2 rounded-xl bg-primary px-6 py-10 text-center text-white shadow-2"
-              >
-                <div class="text-5xl font-extrabold">09</div>
-                <div class="mt-1 text-base font-semibold">Years</div>
-                <div class="text-base font-medium text-white/70">
-                  (Replace this with real metrics)
-                </div>
-              </div>
+            <div class="rounded-xl bg-white p-8 shadow-2 dark:bg-dark sm:p-10">
+              <h3 class="mb-6 text-xl font-bold text-dark dark:text-white">
+                Why students choose Eduvidra
+              </h3>
+              <ul class="space-y-5">
+                <li class="flex items-start gap-4">
+                  <span class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="font-semibold text-dark dark:text-white">Learn at your own pace</p>
+                    <p class="text-sm text-body-color dark:text-dark-6">Start, pause, and resume lessons whenever it suits you.</p>
+                  </div>
+                </li>
+                <li class="flex items-start gap-4">
+                  <span class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="font-semibold text-dark dark:text-white">Everything in one dashboard</p>
+                    <p class="text-sm text-body-color dark:text-dark-6">Courses, materials, and progress — no more digging around.</p>
+                  </div>
+                </li>
+                <li class="flex items-start gap-4">
+                  <span class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor" />
+                    </svg>
+                  </span>
+                  <div>
+                    <p class="font-semibold text-dark dark:text-white">Your account stays secure</p>
+                    <p class="text-sm text-body-color dark:text-dark-6">Two-factor authentication protects your progress and data.</p>
+                  </div>
+                </li>
+              </ul>
             </div>
-            <p class="mt-4 text-sm text-body-color dark:text-dark-6">
-              Note: images were removed because template assets aren’t in
-              `public/` yet.
-            </p>
           </div>
         </div>
       </div>
@@ -621,8 +568,8 @@ watch(isDark, (dark) => applyTheme(dark));
       <div class="container px-4 mx-auto">
         <div class="mx-auto max-w-[570px] text-center">
           <h2 class="mb-2.5 text-3xl font-bold text-white md:text-[38px] md:leading-[1.44]">
-            <span>Ready to explore Eduvidra?</span>
-            <span class="text-3xl font-normal md:text-[40px]">Get started now</span>
+            <span>Ready to start learning? </span>
+            <span class="text-3xl font-normal md:text-[40px]">Create your free account</span>
           </h2>
           <p class="mx-auto mb-6 max-w-[515px] text-base leading-[1.5] text-white">
             <template v-if="isLoggedIn">
@@ -676,11 +623,11 @@ watch(isDark, (dark) => applyTheme(dark));
               <h2
                 class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]"
               >
-                Simple plans
+                Simple, flexible plans
               </h2>
               <p class="text-base text-body-color dark:text-dark-6">
-                Replace these with your real subscription tiers (or remove this
-                section if you don’t need pricing).
+                Start free and upgrade when you're ready. No hidden fees — just
+                the tools you need to keep learning.
               </p>
             </div>
           </div>
@@ -689,97 +636,125 @@ watch(isDark, (dark) => applyTheme(dark));
         <div class="flex flex-wrap justify-center -mx-4">
           <div class="w-full px-4 md:w-1/2 lg:w-1/3">
             <div
-              class="relative z-10 mb-10 overflow-hidden rounded-xl bg-white px-8 py-10 shadow-pricing dark:bg-dark-2 sm:p-12 lg:px-6 lg:py-10 xl:p-14"
+              class="relative z-10 mb-10 flex h-full flex-col overflow-hidden rounded-xl bg-white px-8 py-10 shadow-pricing transition duration-300 hover:-translate-y-1 dark:bg-dark-2 sm:p-12 lg:px-8 lg:py-10 xl:p-12"
             >
-              <span class="mb-5 block text-xl font-medium text-dark dark:text-white">
-                Starter
+              <span class="mb-2 block text-xl font-semibold text-dark dark:text-white">
+                Free
               </span>
-              <h2 class="mb-11 text-4xl font-semibold text-dark dark:text-white xl:text-[42px] xl:leading-[1.2]">
+              <p class="mb-6 text-sm text-body-color dark:text-dark-6">
+                For learners getting started.
+              </p>
+              <h2 class="mb-8 text-4xl font-bold text-dark dark:text-white xl:text-[42px] xl:leading-[1.2]">
                 <span class="mr-1.5 text-xl font-medium">$</span>
                 <span class="-tracking-[2px]">0</span>
                 <span class="text-base font-normal text-body-color dark:text-dark-6">
                   / month
                 </span>
               </h2>
-              <div class="mb-[50px]">
-                <h5 class="mb-5 text-lg font-medium text-dark dark:text-white">
-                  Includes
-                </h5>
-                <div class="flex flex-col gap-[14px]">
-                  <p class="text-base text-body-color dark:text-dark-6">Student cabinet</p>
-                  <p class="text-base text-body-color dark:text-dark-6">Basic features</p>
-                </div>
-              </div>
+              <ul class="mb-9 flex flex-col gap-4">
+                <li class="flex items-center gap-3 text-base text-body-color dark:text-dark-6">
+                  <span class="text-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Personal learning dashboard
+                </li>
+                <li class="flex items-center gap-3 text-base text-body-color dark:text-dark-6">
+                  <span class="text-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Access to free courses
+                </li>
+                <li class="flex items-center gap-3 text-base text-body-color dark:text-dark-6">
+                  <span class="text-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Progress tracking
+                </li>
+              </ul>
               <Link
                 :href="route('register')"
-                class="inline-block rounded-md bg-primary px-7 py-3 text-base font-medium text-center text-white transition hover:bg-blue-dark"
+                class="mt-auto inline-block rounded-md border border-primary bg-transparent px-7 py-3 text-center text-base font-medium text-primary transition hover:bg-primary hover:text-white"
               >
-                Start now
+                Get started free
               </Link>
             </div>
           </div>
 
           <div class="w-full px-4 md:w-1/2 lg:w-1/3">
             <div
-              class="relative z-10 mb-10 overflow-hidden rounded-xl bg-white px-8 py-10 shadow-pricing dark:bg-dark-2 sm:p-12 lg:px-6 lg:py-10 xl:p-14"
+              class="relative z-10 mb-10 flex h-full flex-col overflow-hidden rounded-xl bg-primary px-8 py-10 shadow-pricing transition duration-300 hover:-translate-y-1 sm:p-12 lg:px-8 lg:py-10 xl:p-12"
             >
-              <p
-                class="pointer-events-none absolute right-2 top-[60px] z-10 inline-block -rotate-90 whitespace-nowrap rounded-bl-md rounded-tl-md bg-primary px-5 py-2 text-base font-medium text-white"
+              <span
+                class="absolute right-5 top-6 inline-block rounded-full bg-white/20 px-4 py-1 text-sm font-medium text-white"
               >
-                Popular
-              </p>
-              <span class="mb-5 block text-xl font-medium text-dark dark:text-white">
+                Most popular
+              </span>
+              <span class="mb-2 block text-xl font-semibold text-white">
                 Pro
               </span>
-              <h2 class="mb-11 text-4xl font-semibold text-dark dark:text-white xl:text-[42px] xl:leading-[1.2]">
+              <p class="mb-6 text-sm text-white/70">
+                For learners who want it all.
+              </p>
+              <h2 class="mb-8 text-4xl font-bold text-white xl:text-[42px] xl:leading-[1.2]">
                 <span class="mr-1.5 text-xl font-medium">$</span>
                 <span class="-tracking-[2px]">29</span>
-                <span class="text-base font-normal text-body-color dark:text-dark-6">
+                <span class="text-base font-normal text-white/70">
                   / month
                 </span>
               </h2>
-              <div class="mb-[50px]">
-                <h5 class="mb-5 text-lg font-medium text-dark dark:text-white">
-                  Includes
-                </h5>
-                <div class="flex flex-col gap-[14px]">
-                  <p class="text-base text-body-color dark:text-dark-6">Everything in Starter</p>
-                  <p class="text-base text-body-color dark:text-dark-6">Admin tools</p>
-                </div>
-              </div>
-              <a
-                href="#contact"
-                class="inline-block rounded-md bg-primary px-7 py-3 text-base font-medium text-center text-white transition hover:bg-blue-dark"
+              <ul class="mb-9 flex flex-col gap-4">
+                <li class="flex items-center gap-3 text-base text-white">
+                  <span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Everything in Free
+                </li>
+                <li class="flex items-center gap-3 text-base text-white">
+                  <span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Unlimited courses
+                </li>
+                <li class="flex items-center gap-3 text-base text-white">
+                  <span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Certificates of completion
+                </li>
+                <li class="flex items-center gap-3 text-base text-white">
+                  <span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Priority support
+                </li>
+              </ul>
+              <Link
+                :href="route('register')"
+                class="mt-auto inline-block rounded-md bg-white px-7 py-3 text-center text-base font-medium text-primary transition hover:bg-gray-2"
               >
-                Contact us
-              </a>
+                Upgrade to Pro
+              </Link>
             </div>
           </div>
 
           <div class="w-full px-4 md:w-1/2 lg:w-1/3">
             <div
-              class="relative z-10 mb-10 overflow-hidden rounded-xl bg-white px-8 py-10 shadow-pricing dark:bg-dark-2 sm:p-12 lg:px-6 lg:py-10 xl:p-14"
+              class="relative z-10 mb-10 flex h-full flex-col overflow-hidden rounded-xl bg-white px-8 py-10 shadow-pricing transition duration-300 hover:-translate-y-1 dark:bg-dark-2 sm:p-12 lg:px-8 lg:py-10 xl:p-12"
             >
-              <span class="mb-5 block text-xl font-medium text-dark dark:text-white">
-                Enterprise
+              <span class="mb-2 block text-xl font-semibold text-dark dark:text-white">
+                Institution
               </span>
-              <h2 class="mb-11 text-4xl font-semibold text-dark dark:text-white xl:text-[42px] xl:leading-[1.21]">
+              <p class="mb-6 text-sm text-body-color dark:text-dark-6">
+                For schools and teams.
+              </p>
+              <h2 class="mb-8 text-4xl font-bold text-dark dark:text-white xl:text-[42px] xl:leading-[1.21]">
                 Custom
               </h2>
-              <div class="mb-[50px]">
-                <h5 class="mb-5 text-lg font-medium text-dark dark:text-white">
-                  Includes
-                </h5>
-                <div class="flex flex-col gap-[14px]">
-                  <p class="text-base text-body-color dark:text-dark-6">Custom onboarding</p>
-                  <p class="text-base text-body-color dark:text-dark-6">SLA & support</p>
-                </div>
-              </div>
+              <ul class="mb-9 flex flex-col gap-4">
+                <li class="flex items-center gap-3 text-base text-body-color dark:text-dark-6">
+                  <span class="text-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Everything in Pro
+                </li>
+                <li class="flex items-center gap-3 text-base text-body-color dark:text-dark-6">
+                  <span class="text-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Admin tools & user management
+                </li>
+                <li class="flex items-center gap-3 text-base text-body-color dark:text-dark-6">
+                  <span class="text-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.2 11.1 2.9 7.8l1.1-1.1 2.2 2.2L11.9 3.4 13 4.5l-6.8 6.6Z" fill="currentColor"/></svg></span>
+                  Dedicated onboarding & support
+                </li>
+              </ul>
               <a
                 href="#contact"
-                class="inline-block rounded-md bg-primary px-7 py-3 text-base font-medium text-center text-white transition hover:bg-blue-dark"
+                class="mt-auto inline-block rounded-md border border-primary bg-transparent px-7 py-3 text-center text-base font-medium text-primary transition hover:bg-primary hover:text-white"
               >
-                Talk to us
+                Contact sales
               </a>
             </div>
           </div>
@@ -794,41 +769,51 @@ watch(isDark, (dark) => applyTheme(dark));
         <div class="mx-auto mb-[60px] max-w-[520px] text-center">
           <span class="mb-2 block text-lg font-semibold text-primary">FAQ</span>
           <h2 class="mb-3 text-3xl font-bold leading-[1.2] text-dark dark:text-white sm:text-4xl md:text-[40px]">
-            Questions
+            Frequently asked questions
           </h2>
           <p class="text-base text-body-color dark:text-dark-6">
-            Replace with your real onboarding and platform questions.
+            Everything you need to know about getting started with Eduvidra.
           </p>
         </div>
 
         <div class="mx-auto max-w-[800px] space-y-6">
           <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
             <h3 class="text-lg font-semibold text-dark dark:text-white">
-              How do I access the admin cabinet?
+              How do I get started?
             </h3>
             <p class="mt-2 text-body-color dark:text-dark-6">
-              Admin routes are protected by permissions; only users with admin
-              access can enter.
+              Create a free account in under a minute, set up your sign-in, and
+              you'll land straight in your personal dashboard ready to learn.
             </p>
           </div>
 
           <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
             <h3 class="text-lg font-semibold text-dark dark:text-white">
-              Can students see admin pages?
+              Does it cost anything to try?
             </h3>
             <p class="mt-2 text-body-color dark:text-dark-6">
-              No—RBAC blocks it server-side, and the UI can hide admin menu
-              items.
+              No. The Free plan lets you explore courses and track your progress
+              at no cost. You can upgrade to Pro any time you want more.
             </p>
           </div>
 
           <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
             <h3 class="text-lg font-semibold text-dark dark:text-white">
-              Can we have different sidebars later?
+              Can I learn on my phone?
             </h3>
             <p class="mt-2 text-body-color dark:text-dark-6">
-              Yes. Start with a shared sidebar component, then split into
-              `StudentSidebar` and `AdminSidebar` later.
+              Yes. Eduvidra works in any modern browser, so you can pick up your
+              courses on a phone, tablet, or laptop whenever it suits you.
+            </p>
+          </div>
+
+          <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
+            <h3 class="text-lg font-semibold text-dark dark:text-white">
+              Is my account secure?
+            </h3>
+            <p class="mt-2 text-body-color dark:text-dark-6">
+              Absolutely. Every account supports two-factor authentication, so
+              your progress and personal details stay protected.
             </p>
           </div>
         </div>
@@ -836,107 +821,71 @@ watch(isDark, (dark) => applyTheme(dark));
     </section>
     <!-- ====== FAQ Section End ====== -->
 
-    <!-- ====== Team Section Start ====== -->
-    <section
-      id="team"
-      class="bg-white py-20 dark:bg-dark lg:py-[120px]"
-    >
-      <div class="container px-4 mx-auto">
-        <div class="mx-auto mb-[60px] max-w-[520px] text-center">
-          <span class="mb-2 block text-lg font-semibold text-primary">
-            Team
-          </span>
-          <h2 class="mb-3 text-3xl font-bold leading-[1.2] text-dark dark:text-white sm:text-4xl md:text-[40px]">
-            Our team
-          </h2>
-          <p class="text-base text-body-color dark:text-dark-6">
-            Add real people and photos later.
-          </p>
-        </div>
-
-        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="rounded-xl bg-gray-1 p-6 shadow-1 dark:bg-dark-2">
-            <div class="h-28 w-28 rounded-full bg-white/60 shadow-1 dark:bg-dark" />
-            <div class="mt-4 text-lg font-semibold text-dark dark:text-white">
-              Person One
-            </div>
-            <div class="text-sm text-body-color dark:text-dark-6">
-              Role
-            </div>
-          </div>
-          <div class="rounded-xl bg-gray-1 p-6 shadow-1 dark:bg-dark-2">
-            <div class="h-28 w-28 rounded-full bg-white/60 shadow-1 dark:bg-dark" />
-            <div class="mt-4 text-lg font-semibold text-dark dark:text-white">
-              Person Two
-            </div>
-            <div class="text-sm text-body-color dark:text-dark-6">
-              Role
-            </div>
-          </div>
-          <div class="rounded-xl bg-gray-1 p-6 shadow-1 dark:bg-dark-2">
-            <div class="h-28 w-28 rounded-full bg-white/60 shadow-1 dark:bg-dark" />
-            <div class="mt-4 text-lg font-semibold text-dark dark:text-white">
-              Person Three
-            </div>
-            <div class="text-sm text-body-color dark:text-dark-6">
-              Role
-            </div>
-          </div>
-          <div class="rounded-xl bg-gray-1 p-6 shadow-1 dark:bg-dark-2">
-            <div class="h-28 w-28 rounded-full bg-white/60 shadow-1 dark:bg-dark" />
-            <div class="mt-4 text-lg font-semibold text-dark dark:text-white">
-              Person Four
-            </div>
-            <div class="text-sm text-body-color dark:text-dark-6">
-              Role
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    <!-- ====== Team Section End ====== -->
-
     <!-- ====== Blog Section Start ====== -->
-    <section class="bg-gray-1 py-20 dark:bg-dark-2 lg:py-[120px]">
+    <section id="blog" class="bg-gray-1 py-20 dark:bg-dark-2 lg:py-[120px]">
       <div class="container px-4 mx-auto">
         <div class="mx-auto mb-[60px] max-w-[520px] text-center">
-          <span class="mb-2 block text-lg font-semibold text-primary">Blog</span>
+          <span class="mb-2 block text-lg font-semibold text-primary">Updates</span>
           <h2 class="mb-3 text-3xl font-bold leading-[1.2] text-dark dark:text-white sm:text-4xl md:text-[40px]">
-            Latest updates
+            News &amp; learning tips
           </h2>
           <p class="text-base text-body-color dark:text-dark-6">
-            Optional section—keep or remove depending on your roadmap.
+            Product updates and practical advice to help you get the most out of
+            Eduvidra.
           </p>
         </div>
 
         <div class="grid gap-6 md:grid-cols-3">
-          <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
-            <div class="text-sm text-body-color dark:text-dark-6">Apr 2026</div>
-            <div class="mt-2 text-lg font-semibold text-dark dark:text-white">
-              First release
+          <article class="group flex flex-col overflow-hidden rounded-xl bg-white shadow-1 transition duration-300 hover:shadow-2 dark:bg-dark">
+            <div class="flex h-40 items-center justify-center bg-primary/10 text-primary">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             </div>
-            <p class="mt-2 text-body-color dark:text-dark-6">
-              A short post teaser goes here.
-            </p>
-          </div>
-          <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
-            <div class="text-sm text-body-color dark:text-dark-6">Apr 2026</div>
-            <div class="mt-2 text-lg font-semibold text-dark dark:text-white">
-              Improvements
+            <div class="flex flex-1 flex-col p-6">
+              <span class="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">Product</span>
+              <h3 class="mb-2 text-lg font-semibold text-dark dark:text-white">
+                A fresh new dashboard
+              </h3>
+              <p class="mb-4 text-sm text-body-color dark:text-dark-6">
+                Your courses and progress now live on one redesigned home screen,
+                so picking up where you left off takes a single click.
+              </p>
+              <a href="#" class="mt-auto text-sm font-medium text-primary hover:underline">Read more</a>
             </div>
-            <p class="mt-2 text-body-color dark:text-dark-6">
-              A short post teaser goes here.
-            </p>
-          </div>
-          <div class="rounded-xl bg-white p-6 shadow-1 dark:bg-dark">
-            <div class="text-sm text-body-color dark:text-dark-6">Apr 2026</div>
-            <div class="mt-2 text-lg font-semibold text-dark dark:text-white">
-              Roadmap
+          </article>
+
+          <article class="group flex flex-col overflow-hidden rounded-xl bg-white shadow-1 transition duration-300 hover:shadow-2 dark:bg-dark">
+            <div class="flex h-40 items-center justify-center bg-primary/10 text-primary">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
             </div>
-            <p class="mt-2 text-body-color dark:text-dark-6">
-              A short post teaser goes here.
-            </p>
-          </div>
+            <div class="flex flex-1 flex-col p-6">
+              <span class="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">Learning tips</span>
+              <h3 class="mb-2 text-lg font-semibold text-dark dark:text-white">
+                Building a study habit that sticks
+              </h3>
+              <p class="mb-4 text-sm text-body-color dark:text-dark-6">
+                Short, consistent sessions beat marathon cramming. Here's how to
+                use progress tracking to keep your momentum going.
+              </p>
+              <a href="#" class="mt-auto text-sm font-medium text-primary hover:underline">Read more</a>
+            </div>
+          </article>
+
+          <article class="group flex flex-col overflow-hidden rounded-xl bg-white shadow-1 transition duration-300 hover:shadow-2 dark:bg-dark">
+            <div class="flex h-40 items-center justify-center bg-primary/10 text-primary">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="flex flex-1 flex-col p-6">
+              <span class="mb-3 inline-flex w-fit rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">Security</span>
+              <h3 class="mb-2 text-lg font-semibold text-dark dark:text-white">
+                Protect your account with 2FA
+              </h3>
+              <p class="mb-4 text-sm text-body-color dark:text-dark-6">
+                Two-factor authentication adds a second layer of protection in
+                seconds. Here's how to switch it on for your account.
+              </p>
+              <a href="#" class="mt-auto text-sm font-medium text-primary hover:underline">Read more</a>
+            </div>
+          </article>
         </div>
       </div>
     </section>
@@ -955,8 +904,8 @@ watch(isDark, (dark) => applyTheme(dark));
                 Let’s talk
               </h2>
               <p class="mb-8 text-base text-body-color dark:text-dark-6">
-                Hook this form to a Laravel route later. For now it’s a static
-                UI section.
+                Questions about courses, plans, or bringing Eduvidra to your
+                school? Send us a message and we'll get back to you.
               </p>
             </div>
           </div>
@@ -1024,7 +973,8 @@ watch(isDark, (dark) => applyTheme(dark));
                 </span>
               </Link>
               <p class="mb-7 text-base text-white/70">
-                Eduvidra — built with Laravel, Inertia, Vue, and Tailwind.
+                Eduvidra is an online learning platform that brings your courses,
+                progress, and materials together in one simple place.
               </p>
             </div>
           </div>
@@ -1088,8 +1038,4 @@ watch(isDark, (dark) => applyTheme(dark));
       </div>
     </footer>
     <!-- ====== Footer Section End ====== -->
-
-    <div class="pointer-events-none fixed bottom-2 right-3 z-50 text-white">
-        <AppVersion />
-    </div>
 </template>

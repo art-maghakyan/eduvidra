@@ -46,6 +46,7 @@ const form = useForm({
         <form
             @submit.prevent="form.patch(route(profileUpdateRouteName))"
             class="mt-6 space-y-6"
+            novalidate
         >
             <div>
                 <InputLabel for="name" value="Name" />
