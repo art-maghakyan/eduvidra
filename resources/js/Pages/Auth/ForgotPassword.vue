@@ -68,7 +68,7 @@ const submit = () => {
                                 {{ status }}
                             </div>
 
-                            <form @submit.prevent="submit">
+                            <form @submit.prevent="submit" novalidate>
                                 <div class="mb-[22px] text-left">
                                     <input
                                         id="email"

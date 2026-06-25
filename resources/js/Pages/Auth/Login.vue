@@ -1,4 +1,5 @@
 <script setup>
+import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Checkbox from '@/Components/Checkbox.vue';
 import InputError from '@/Components/InputError.vue';
 import AuthLayout from '@/Layouts/AuthLayout.vue';
@@ -33,55 +34,37 @@ const submit = () => {
     <AuthLayout>
         <Head title="Sign in" />
 
-        <!-- Banner -->
-        <div
-            class="relative z-10 overflow-hidden pb-[60px] pt-[120px] md:pt-[130px] lg:pt-[160px] dark:bg-dark"
-        >
-            <div
-                class="absolute bottom-0 left-0 h-px w-full bg-linear-to-r from-stroke/0 via-stroke to-stroke/0 dark:via-dark-3"
-            />
-            <div class="container mx-auto px-4">
-                <div class="-mx-4 flex flex-wrap items-center">
-                    <div class="w-full px-4">
-                        <div class="text-center">
-                            <h1
-                                class="mb-4 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]"
-                            >
-                                Sign in
-                            </h1>
-                            <p class="mb-5 text-base text-body-color dark:text-dark-6">
-                                Access your cabinet.
-                            </p>
-                        </div>
-                    </div>
+        <!-- Centered form column -->
+        <div class="flex min-h-screen items-center justify-center px-4 py-28">
+            <div class="w-full max-w-[525px]">
+                <div class="mb-8 text-center">
+                    <h1
+                        class="mb-3 text-3xl font-bold text-dark dark:text-white sm:text-4xl md:text-[40px] md:leading-[1.2]"
+                    >
+                        Sign in
+                    </h1>
+                    <p class="text-base text-body-color dark:text-dark-6">
+                        Welcome back. Sign in to continue learning.
+                    </p>
                 </div>
-            </div>
-        </div>
 
-        <!-- Form card -->
-        <section class="bg-[#F4F7FF] py-14 dark:bg-dark lg:py-20">
-            <div class="container mx-auto px-4">
-                <div class="-mx-4 flex flex-wrap">
-                    <div class="w-full px-4">
-                        <div
-                            class="relative mx-auto max-w-[525px] overflow-hidden rounded-lg bg-white px-8 py-14 text-center shadow-form dark:bg-dark-2 sm:px-12 md:px-[60px]"
-                        >
-                            <div class="mb-8 text-center">
-                                <Link href="/" class="inline-block">
-                                    <span class="text-2xl font-bold text-dark dark:text-white">
-                                        Eduvidra
-                                    </span>
-                                </Link>
-                            </div>
+                <div
+                    class="relative overflow-hidden rounded-xl bg-white px-8 py-12 text-center shadow-form dark:bg-dark-2 sm:px-12 md:px-[60px]"
+                >
+                    <div class="mb-8 text-center">
+                        <Link href="/" class="inline-block">
+                            <ApplicationLogo class-name="mx-auto h-16 w-auto" />
+                        </Link>
+                    </div>
 
-                            <div
-                                v-if="status"
-                                class="mb-6 rounded-md bg-green-50 px-4 py-3 text-sm font-medium text-green-700"
-                            >
-                                {{ status }}
-                            </div>
+                    <div
+                        v-if="status"
+                        class="mb-6 rounded-md bg-green-50 px-4 py-3 text-sm font-medium text-green-700"
+                    >
+                        {{ status }}
+                    </div>
 
-                            <form @submit.prevent="submit">
+                    <form @submit.prevent="submit" novalidate>
                                 <div class="mb-[22px] text-left">
                                     <input
                                         id="email"
@@ -185,16 +168,14 @@ const submit = () => {
                                 </div>
                             </form>
 
-                            <p class="text-base text-body-secondary">
-                                Don’t have an account?
-                                <Link :href="route('register')" class="text-primary hover:underline">
-                                    Sign up
-                                </Link>
-                            </p>
-                        </div>
+                        <p class="text-base text-body-secondary">
+                            Don’t have an account?
+                            <Link :href="route('register')" class="text-primary hover:underline">
+                                Sign up
+                            </Link>
+                        </p>
                     </div>
                 </div>
             </div>
-        </section>
     </AuthLayout>
 </template>

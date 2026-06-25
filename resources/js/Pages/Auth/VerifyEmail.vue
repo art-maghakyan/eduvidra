@@ -39,7 +39,7 @@ const verificationLinkSent = computed(
             provided during registration.
         </div>
 
-        <form @submit.prevent="submit">
+        <form @submit.prevent="submit" novalidate>
             <div class="mt-4 flex items-center justify-between">
                 <PrimaryButton
                     :class="{ 'opacity-25': form.processing }"
