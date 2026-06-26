@@ -29,6 +29,7 @@ RUN docker-php-ext-install -j"$(nproc)" \
         gd \
         mbstring \
         bcmath \
+        pcntl \
         pdo_sqlite \
         pdo_pgsql
 
