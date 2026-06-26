@@ -6,10 +6,13 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Str;
 use RuntimeException as BaseRuntimeException;
 use Spatie\Permission\Models\Role;
 use Throwable as BaseThrowable;
+
+Schedule::command('horizon:snapshot')->everyMinute();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
