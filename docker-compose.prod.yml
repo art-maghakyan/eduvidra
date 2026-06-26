@@ -65,7 +65,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    command: php artisan queue:work redis --sleep=1 --tries=3 --timeout=90
+    # Horizon manages the worker pool; --sleep/--tries/--timeout now live in config/horizon.php.
+    command: php artisan horizon
     volumes:
       - app_storage:/var/www/storage
     logging:
