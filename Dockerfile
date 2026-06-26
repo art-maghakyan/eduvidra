@@ -17,7 +17,8 @@ RUN --mount=type=cache,target=/tmp/composer-cache,sharing=locked \
         --prefer-dist \
         --no-interaction \
         --no-scripts \
-        --no-autoloader
+        --no-autoloader \
+        --ignore-platform-req=ext-pcntl
 
 COPY . .
 RUN composer dump-autoload --optimize --classmap-authoritative --no-dev
