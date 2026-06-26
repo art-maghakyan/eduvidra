@@ -51,7 +51,7 @@ services:
     volumes:
       - .:/var/www
     working_dir: /var/www
-    command: php artisan queue:work redis --sleep=1 --tries=3 --timeout=90
+    command: php artisan horizon
     environment: *app-environment
 
   scheduler:

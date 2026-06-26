@@ -146,6 +146,10 @@ echo "==> switch nginx to $INACTIVE_SERVICE"
 switch_nginx_to "$INACTIVE_COLOR"
 printf '%s\n' "$INACTIVE_COLOR" > "$ACTIVE_COLOR_FILE"
 
+echo "==> gracefully drain Horizon before restarting the worker container"
+$COMPOSE exec -T queue php artisan horizon:terminate >/dev/null 2>&1 || true
+sleep 5
+
 echo "==> restart workers on new image"
 $COMPOSE up -d --no-deps queue scheduler
 
