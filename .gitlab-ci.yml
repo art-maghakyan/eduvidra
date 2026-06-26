@@ -63,7 +63,9 @@ build:ci-image:
 # ---------- LINT ----------
 pint:
   stage: lint
-  image: composer:2
+  image:
+    name: $CI_PHP_IMAGE
+    pull_policy: always
   cache:
     - <<: *composer-cache
   before_script:
