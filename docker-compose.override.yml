@@ -15,6 +15,7 @@ x-app-environment: &app-environment
   MAIL_HOST: smtp.gmail.com
   MAIL_PORT: 587
   MAIL_ENCRYPTION: tls
+  ELASTIC_HOST: elasticsearch:9200
 
 x-app-depends-on: &app-depends-on
   - db
@@ -100,6 +101,21 @@ services:
     networks:
       - eduvidra-network
 
+  elasticsearch:
+    image: elasticsearch:9.0.3
+    container_name: eduvidra-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/var/lib/elasticsearch/data
+    networks:
+      - eduvidra-network
+
 volumes:
   pgdata:
   vite_node_modules:
+  esdata:

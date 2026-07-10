@@ -39,6 +39,33 @@ docker compose down -v && docker compose up -d --build
 docker compose exec app php artisan key:generate
 docker compose exec app php artisan storage:link
 docker compose exec app php artisan migrate --seed
+
+# Search: dev uses Elasticsearch (SCOUT_DRIVER=elastic). Prod runs no ES —
+# SCOUT_DRIVER=database searches Postgres directly (same code/UI, $0 infra), so
+# none of the elastic:migrate/scout:import steps below apply in prod. See
+# docs/search-integration.md.
+
+# Apply Elasticsearch index mappings (babenkoivan/elastic-migrations, tracked in elastic/migrations)
+docker compose exec app php artisan elastic:migrate
+
+# Seed search data (10 courses + 100 videos) and index courses into Elasticsearch
+# (only Course is searchable; videos are course data and are not indexed)
+docker compose exec app php artisan dev:seed-search
+docker compose exec app php artisan scout:import "App\Models\Course"
+
+# Re-index after a mapping change (elastic/migrations/*): rebuild just that index, then reimport.
+# NOTE: elastic:migrate:fresh drops *every* index in the ES cluster (indexManager->drop('*')),
+# not just the migrated one - use rollback+migrate instead to stay scoped to indices with migrations.
+docker compose exec app php artisan elastic:migrate:rollback
+docker compose exec app php artisan elastic:migrate
+docker compose exec app php artisan scout:import "App\Models\Course"
+
+# Re-index after model changes with no mapping change (wipe and reimport)
+docker compose exec app php artisan scout:flush "App\Models\Course"
+docker compose exec app php artisan scout:import "App\Models\Course"
+
+# npm packages must be installed inside the vite container (isolated volume)
+docker compose exec vite npm install
 ```
 
 ## Architecture

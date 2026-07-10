@@ -3,9 +3,11 @@
 use App\Enums\RbacPermission;
 use App\Enums\RbacRole;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RobotsController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SesWebhookController;
 use App\Http\Controllers\SitemapController;
 use Illuminate\Support\Facades\Route;
@@ -58,5 +60,9 @@ Route::middleware(['auth', 'role:'.RbacRole::STUDENT->value])->group(function ()
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+Route::get('/search', SearchController::class)->name('search');
+
+Route::get('/courses/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
 
 require __DIR__.'/auth.php';

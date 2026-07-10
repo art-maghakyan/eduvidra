@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { RbacPermission } from '@/constants/rbac';
+import SearchBox from '@/Components/Shared/SearchBox.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user ?? null);
@@ -96,6 +97,9 @@ watch(isDark, (dark) => applyTheme(dark));
                             </span>
                         </Link>
                     </div>
+
+                    <!-- Navbar search -->
+                    <SearchBox size="sm" />
 
                     <div class="flex items-center gap-2">
                         <!-- Theme toggle -->
