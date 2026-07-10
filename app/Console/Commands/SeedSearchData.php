@@ -224,9 +224,8 @@ class SeedSearchData extends Command
         $this->newLine();
         $this->info('Seeded 10 courses with 10 videos each.');
         $this->newLine();
-        $this->line('Run the following to push them into Elasticsearch:');
+        $this->line('Run the following to push them into Elasticsearch (elastic driver only):');
         $this->line('  php artisan scout:import "App\Models\Course"');
-        $this->line('  php artisan scout:import "App\Models\Video"');
 
         return self::SUCCESS;
     }
