@@ -1,282 +1,239 @@
 # Eduvidra
 
-Eduvidra is a professional SaaS Learning Management System (LMS) designed for streamlined education management. It features a robust multi-role architecture for administrators and students.
+A learning-management platform (courses, video lessons, student/admin roles) built as a
+production-deployed Laravel application — not a tutorial project. It runs on AWS behind a
+GitLab CI/CD pipeline, with queue workers, full-text search, transactional email, and
+blue/green deploys.
 
-## Tech Stack
+**Live:** https://eduvidra.com · **Licence:** [MIT](LICENSE)
+
+---
+
+## What's actually interesting here
+
+If you're evaluating this repo, these are the parts worth opening:
+
+| Area | What it demonstrates | Where to look |
+|---|---|---|
+| **RBAC** | Roles/permissions as PHP enums rather than magic strings, enforced by route middleware and mirrored to the frontend through Inertia props | `app/Enums/RbacRole.php`, `routes/web.php`, `app/Http/Middleware/HandleInertiaRequests.php` |
+| **Two-factor auth** | Hand-rolled TOTP flow (not Fortify): QR setup, challenge, and admin-forced enrolment | `app/Http/Controllers/Auth/TwoFactor*.php`, `resources/js/Pages/Auth/TwoFactor*.vue` |
+| **Swappable search** | Laravel Scout over Elasticsearch in dev and Postgres in production — identical controller and UI, one env var apart, so the showcase costs $0 to host | `app/Search/`, [docs/search-integration.md](docs/search-integration.md) |
+| **Email reputation** | Queued mail via SES, with an SNS webhook that verifies message signatures **and** topic ARNs before writing to a suppression list | `app/Http/Controllers/SesWebhookController.php`, [docs/aws-ses-production-email.md](docs/aws-ses-production-email.md) |
+| **Queues** | Redis-backed jobs supervised by Horizon, gated behind the same RBAC permission as `/admin` | `app/Providers/HorizonServiceProvider.php`, [docs/horizon-setup.md](docs/horizon-setup.md) |
+| **Deployment** | Blue/green PHP-FPM switchover with health gating and a scripted rollback | `bin/deploy-blue-green.sh`, `bin/rollback-blue-green.sh` |
+
+## Stack
 
 | Layer | Technology |
 |---|---|
-| Backend | PHP 8.4 + Laravel 11 |
-| Frontend | Vue 3 + Inertia.js + Tailwind CSS + Vite |
+| Backend | PHP 8.4 · Laravel 13 |
+| Frontend | Vue 3 · Inertia.js · Tailwind CSS · Vite |
 | Database | PostgreSQL 17 |
-| Cache / Queue | Redis 7 |
+| Cache / queue | Redis 7 · Laravel Horizon |
+| Search | Laravel Scout — Elasticsearch (dev) / Postgres (prod) |
 | Web server | Nginx 1.27 |
-| Container runtime | Docker + Docker Compose |
-| CI/CD | GitLab CI (shared runners) |
-| Cloud | AWS — EC2 (`t3.micro`), RDS (Postgres), S3 (uploads), IAM |
+| Runtime | Docker · Docker Compose |
+| CI/CD | GitLab CI |
+| Cloud | AWS — EC2, RDS, S3, SES, CloudWatch, IAM |
 
-## Project Structure
+## Architecture
+
+Inertia means there's no separate API layer: Laravel controllers return Vue page components
+directly, and the browser never does a full reload after the first paint.
 
 ```
-├── Dockerfile                   # Multi-stage: vendor, frontend, base, dev, app, nginx
-├── docker-compose.yml           # Base services (app, queue, scheduler, redis)
-├── docker-compose.override.yml  # Local dev (bind mounts, vite, local db, port 8000)
-├── docker-compose.prod.yml      # Production overlay (named volumes, restart policies)
-├── docker-compose.prod.local.yml # Local prod-stack testing (local db, prod build)
-├── docker/
-│   ├── ci/Dockerfile            # Pre-built CI image (PHP 8.4 + extensions + Composer)
-│   ├── nginx/
-│   │   ├── default.conf         # Dev Nginx config
-│   │   └── prod.conf            # Production Nginx config
-│   └── php/
-│       └── opcache.ini          # PHP Opcache settings (prod)
-├── bin/
-│   ├── deploy.sh                # Production deploy script (runs on EC2 via GitLab CI)
-│   ├── configure-prod-logging-env.sh # Switch prod Laravel logs to stderr
-│   ├── install-cloudwatch-agent.sh # Install/apply CloudWatch Agent on EC2
-│   ├── attach-cloudwatch-policy.sh # Attach IAM policy for CloudWatch Agent/logs
-│   ├── configure-cloudwatch-log-groups.sh # Create log groups + retention
-│   └── create-cloudwatch-alarms.sh # Create core EC2/RDS CloudWatch alarms
-├── ops/
-│   └── cloudwatch/
-│       └── amazon-cloudwatch-agent.json # Host memory/disk/syslog/auth log config
-└── .gitlab-ci.yml               # CI/CD pipeline (build → lint → test → deploy)
+Browser
+   │
+   ▼
+Nginx ──► PHP-FPM (app) ──► Laravel ──► Inertia ──► Vue 3 SPA
+                               │
+                               ├──► PostgreSQL 17      (source of truth)
+                               ├──► Redis 7            (cache, sessions, queue)
+                               │       └──► Horizon ──► queue workers ──► SES
+                               └──► Scout ──► Elasticsearch (dev) / Postgres (prod)
 ```
 
-## Local Development
+In production the same image runs on EC2, with Postgres on RDS and uploads on S3. AWS access
+uses the instance's IAM role — there are no static AWS keys in any environment file.
 
-### 1. Clone & configure environment
+```
+Internet → Elastic IP → EC2 t3.micro (Ubuntu 24.04)
+                            ├── nginx (:80)
+                            ├── app (PHP-FPM, blue/green)
+                            ├── queue (Horizon)
+                            ├── scheduler
+                            └── redis
+                          ↓ private subnets, SSL required
+                        RDS PostgreSQL 17 (db.t3.micro)
+                          ↓ IAM role, no static keys
+                        S3 (user uploads)
+```
+
+---
+
+## Running it locally
+
+Everything runs in Docker — you do **not** need PHP, Composer, or Node on your machine.
 
 ```bash
 git clone https://gitlab.com/art-maghakyan/eduvidra.git
 cd eduvidra
-cp .env.example .env
-```
+cp .env.example .env          # defaults already match the Docker services
 
-Edit `.env` and set at minimum:
-- `APP_KEY` — generated in step 3
-- `DB_*` — already pre-filled for local Docker Postgres (no changes needed)
+docker compose up -d --build  # app, nginx, queue, scheduler, redis, db, vite
 
-### 2. Build & start the full dev stack
-
-```bash
-docker compose up -d --build
-```
-
-This starts 7 containers: `app` (PHP-FPM dev), `nginx`, `queue`, `scheduler`, `redis`, `db` (local Postgres), `vite` (HMR dev server).
-
-### 3. One-time initialization (fresh clone / after `down -v`)
-
-```bash
 docker compose exec app php artisan key:generate
 docker compose exec app php artisan storage:link
 docker compose exec app php artisan migrate --seed
 ```
 
-### 4. Open the app
+Open **http://localhost:8000**. Vite HMR is proxied automatically.
 
-App: **http://localhost:8000**
-Vite HMR: **http://localhost:5173** (proxied automatically — no manual setup needed)
+`migrate --seed` creates the roles and permissions. To register an admin, sign up through the
+UI, then grant the role:
+
+```bash
+docker compose exec app php artisan tinker
+>>> App\Models\User::first()->assignRole(App\Enums\RbacRole::ADMIN->value);
+```
+
+### Search (optional)
+
+Search works out of the box against Postgres (`SCOUT_DRIVER=database`). To exercise the
+Elasticsearch path instead, keep the default `SCOUT_DRIVER=elastic` and populate the index:
+
+```bash
+docker compose exec app php artisan elastic:migrate           # apply index mappings
+docker compose exec app php artisan dev:seed-search           # 10 courses + 100 videos
+docker compose exec app php artisan scout:import "App\Models\Course"
+```
+
+## Running the tests
+
+```bash
+docker compose exec app php artisan test                              # everything
+docker compose exec app php artisan test tests/Feature/SesWebhookTest.php
+docker compose exec app php artisan test --filter=test_health_endpoint_returns_ok
+```
+
+Tests run against in-memory SQLite with `CACHE_STORE=array` and `QUEUE_CONNECTION=sync`, so
+they need no running database. The two Elasticsearch mapping tests skip themselves when no ES
+node is reachable.
+
+Code style is enforced in CI by Laravel Pint:
+
+```bash
+docker compose exec app vendor/bin/pint --test   # check
+docker compose exec app vendor/bin/pint          # fix
+```
 
 ### Everyday commands
 
 ```bash
-# Start dev stack
-docker compose up -d
-
-# Stop containers (keep DB data)
-docker compose down
-
-# Wipe everything including volumes (fresh start)
-docker compose down -v
-
-# Tail logs
-docker compose logs -f app nginx vite
-
-# Shell into app
-docker compose exec app bash
-
-# Run Artisan
-docker compose exec app php artisan <command>
-
-# Run tests
-docker compose exec app php artisan test
-
-# Rebuild images (after Dockerfile change)
-docker compose up -d --build
+docker compose up -d                  # start
+docker compose down                   # stop, keep data
+docker compose down -v                # stop, wipe volumes
+docker compose logs -f app nginx vite # tail logs
+docker compose exec app bash          # shell in
+docker compose exec vite npm install  # npm lives in the vite container
 ```
 
-## Testing the Production Build Locally
+---
 
-Use the `prod.local` overlay — it runs the production Docker targets with a local Postgres instead of RDS:
+## Project layout
 
-```bash
-VITE_APP_VERSION=$(git rev-parse --short HEAD) \
-  docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.local.yml up -d --build
+```
+app/
+├── Enums/                    # RbacRole, RbacPermission, SuppressionType
+├── Http/Controllers/         # Inertia pages, health, search, SES webhook
+├── Search/                   # Scout query building, driver-agnostic
+├── Support/Seo.php           # Per-route Open Graph / Twitter metadata
+└── Providers/                # App, Horizon (RBAC gate), Search
+resources/js/
+├── Pages/                    # Resolved by name from Inertia::render()
+├── Layouts/                  # Applied per page via defineOptions({ layout })
+└── constants/rbac.js         # Mirrors the PHP enums
+bin/                          # Deploy, blue/green, rollback, CloudWatch setup
+docker/                       # Nginx configs, CI image, opcache tuning
+elastic/migrations/           # Versioned Elasticsearch index mappings
+docs/                         # Implementation write-ups per feature
 ```
 
-App available at **http://localhost** (port 80).
-
-Clean up when done:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.prod.local.yml down -v
-docker image rm eduvidra-app:latest eduvidra-nginx:latest 2>/dev/null || true
-```
-
-## Environment Variables
+## Environment configuration
 
 | File | Purpose |
 |---|---|
-| `.env.example` | Committed template for local dev |
+| `.env.example` | Committed template for local dev — matches the Compose services |
 | `.env.production.example` | Committed template for production |
-| `.env` | Local only — **not committed** |
-| `/opt/eduvidra/.env` | Lives on EC2 — managed manually |
+| `.env` | Local only, never committed |
+| `/opt/eduvidra/.env` | Lives on the server, managed out of band |
 
-Production secrets (RDS endpoint, `APP_KEY`, S3 bucket, Redis URL) are stored only in `/opt/eduvidra/.env` on the server. AWS credentials are **not** in `.env` — the EC2 instance uses an IAM role.
+No secrets are committed to this repository, and no AWS credentials exist in any `.env` —
+production reads them from the EC2 instance role.
 
-## CI/CD Pipeline
+## CI/CD
 
 ```
 Feature branch push → no pipeline
 MR opened / updated → lint + test
-Merge to master → lint + test + deploy
+Merge to master     → lint + test + deploy
 ```
-
-### Stages
 
 | Stage | Job | What it does |
 |---|---|---|
-| `build` | `build:ci-image` | Builds & pushes `ci-php:8.4` to GitLab Registry — only when `docker/ci/Dockerfile` changes |
-| `lint` | `pint` | Runs Laravel Pint (code style check) |
-| `test` | `phpunit` | Runs PHPUnit using the pre-built `ci-php:8.4` image |
-| `deploy` | `deploy` | SSHs into EC2 and runs `bin/deploy.sh` |
+| `build` | `build:ci-image` | Rebuilds the `ci-php:8.4` image — only when `docker/ci/Dockerfile` changes |
+| `lint` | `pint` | Laravel Pint style check |
+| `test` | `phpunit` | Full suite on the pre-built CI image |
+| `deploy` | `deploy` | SSH to EC2, run `bin/deploy.sh` |
 
-Composer dependencies are cached between runs, keyed on `composer.lock`.
+Composer dependencies are cached across runs, keyed on `composer.lock`.
 
-### Deploy script (`bin/deploy.sh`)
+### Health endpoint
 
-1. `git pull --ff-only`
-2. Stamps `VITE_APP_VERSION` with the short commit SHA
-3. `docker compose up -d --build --remove-orphans`
-4. Waits for PHP-FPM to be ready
-5. `php artisan migrate --force`
-6. Clears and warms Laravel caches
-7. Prunes stale Docker images
+`GET /health` returns `200` with `{"ok": true, ...}` when the database and cache both respond,
+and `503` otherwise. Deploy scripts gate the blue/green switch on it. Failure details are
+logged rather than returned, since the endpoint is public.
 
-### Blue/green deploy script (`bin/deploy-blue-green.sh`)
+### Blue/green deploys
 
-The blue/green deploy flow keeps two PHP-FPM app colors available:
+`bin/deploy-blue-green.sh` keeps two PHP-FPM colours (`app-blue`, `app-green`) alive and points
+Nginx at the active one via `/etc/nginx/conf.d/upstream-active.conf`. It builds the inactive
+colour, runs `php artisan health:check` against it, migrates, warms caches, then switches with
+a graceful reload. `bin/rollback-blue-green.sh` reverses it.
 
-- `app-blue`
-- `app-green`
+> Caveat, stated honestly: the Nginx image still bakes in built frontend assets, so Nginx can be
+> recreated when assets change. The switch protects PHP-FPM traffic first; fully zero-downtime
+> asset deploys would need versioned S3/CloudFront assets or a shared atomic asset directory.
 
-Nginx stays stable on port 80 and routes PHP requests to the active color through
-`/etc/nginx/conf.d/upstream-active.conf`.
-
-### Health endpoint (`GET /health`)
-
-The application exposes an HTTP health endpoint intended for deploy checks and
-external monitoring.
-
-- **Healthy**: returns `200` with JSON body: `{"ok": true, ...}`
-- **Unhealthy**: returns `503` with JSON body: `{"ok": false, ...}`
-
-Examples:
+### Testing the production build locally
 
 ```bash
-# From the EC2 instance (via Nginx in the container)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T nginx \
-  wget -qO- -S http://127.0.0.1/health 2>&1 | head -20
-
-# From your laptop (replace with your Elastic IP / host)
-curl -i http://YOUR_EC2_IP/health
+VITE_APP_VERSION=$(git rev-parse --short HEAD) \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+                 -f docker-compose.prod.local.yml up -d --build
 ```
 
-Manual usage on EC2:
+Serves on **http://localhost**. Tear down with the same file list plus `down -v`.
 
-```bash
-cd /opt/eduvidra
-./bin/deploy-blue-green.sh
-```
+## Monitoring
 
-Rollback switches Nginx back to the other color after a health check:
+Laravel logs to `stderr` in production; Docker ships container logs to CloudWatch via the
+`awslogs` driver. The CloudWatch Agent adds host memory, disk, and syslog/auth metrics, and
+alarms cover EC2 health/CPU/memory/disk plus RDS CPU/storage/connections.
 
-```bash
-cd /opt/eduvidra
-./bin/rollback-blue-green.sh
-```
-
-The deploy script:
-
-1. Pulls latest code
-2. Detects the active color from `.deploy/active-color`
-3. Builds the inactive color
-4. Starts the inactive color
-5. Runs `php artisan health:check`
-6. Runs migrations and warms Laravel caches on the inactive color
-7. Switches Nginx with a graceful reload
-8. Restarts queue/scheduler
-9. Stops the old color after a short grace period
-
-Note: the current Nginx image still contains built frontend assets, so Nginx may
-be recreated when assets/config change. The blue/green switch protects PHP-FPM
-traffic first; fully zero-downtime static asset deploys require a later asset
-strategy such as versioned S3/CloudFront assets or a shared atomic public asset
-directory.
-
-## AWS Architecture
-
-```
-Internet → Elastic IP → EC2 t3.micro (Ubuntu 24.04)
-                              ├── Docker: nginx (port 80)
-                              ├── Docker: app (PHP-FPM)
-                              ├── Docker: queue
-                              ├── Docker: scheduler
-                              └── Docker: redis
-                         ↓ (private subnet, SSL)
-                        RDS PostgreSQL 17 (db.t3.micro)
-                         ↓ (IAM role — no static keys)
-                        S3 bucket (user uploads)
-```
-
-- **EC2** — `t2.micro` (free tier eligible), deploy user owns `/opt/eduvidra`
-- **RDS** — `db.t3.micro`, `eu-central-1`, private subnets, SSL required
-- **S3** — `eduvidra-app-uploads`, access via EC2 IAM role (no `AWS_ACCESS_KEY_ID` in `.env`)
-- **Networking** — custom VPC, 2 public + 2 private subnets across 2 AZs
-
-## Monitoring With CloudWatch
-
-Production logging is container-first:
-
-- Laravel logs to `stderr` (`LOG_CHANNEL=stack`, `LOG_STACK=stderr`, `LOG_LEVEL=warning`)
-- Docker sends prod container logs to CloudWatch Logs using the `awslogs` driver
-- CloudWatch Agent sends host memory, disk, `/var/log/syslog`, and `/var/log/auth.log`
-- CloudWatch alarms cover EC2 health/CPU/memory/disk and RDS CPU/storage/connections
-
-### One-time AWS setup
-
-From a machine with AWS CLI permissions:
+One-time setup, from a machine with AWS CLI access:
 
 ```bash
 AWS_REGION=eu-central-1 ./bin/attach-cloudwatch-policy.sh
 AWS_REGION=eu-central-1 RETENTION_DAYS=14 ./bin/configure-cloudwatch-log-groups.sh
-```
 
-Create alarms after you know the EC2 instance id and RDS identifier:
-
-```bash
 AWS_REGION=eu-central-1 \
-INSTANCE_ID=i-xxxxxxxxxxxxxxxxx \
-DB_INSTANCE_IDENTIFIER=eduvidra-pg \
-./bin/create-cloudwatch-alarms.sh
+  INSTANCE_ID=i-xxxxxxxxxxxxxxxxx \
+  DB_INSTANCE_IDENTIFIER=eduvidra-pg \
+  ./bin/create-cloudwatch-alarms.sh    # add SNS_TOPIC_ARN=... to get notified
 ```
 
-Optionally add `SNS_TOPIC_ARN=arn:aws:sns:...` to send alarm notifications.
-
-### One-time EC2 setup
-
-On EC2 from `/opt/eduvidra`:
+Then on the server, from `/opt/eduvidra`:
 
 ```bash
 ./bin/configure-prod-logging-env.sh
@@ -284,15 +241,9 @@ On EC2 from `/opt/eduvidra`:
 ./bin/deploy.sh
 ```
 
-After deploy, check:
+Log groups land under `/eduvidra/prod/*`.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml logs app
-docker compose -f docker-compose.yml -f docker-compose.prod.yml logs nginx
-```
+## Version badge
 
-In AWS Console, check **CloudWatch → Log groups** for `/eduvidra/prod/*`.
-
-## Version Badge
-
-Every page shows a small version stamp in the bottom-right corner. In dev it reads `vdev`. After each production deploy it shows the short git SHA of the deployed commit (e.g. `v7f3a912`), which is baked in at build time via `VITE_APP_VERSION`.
+Every page carries a small version stamp bottom-right: `vdev` locally, and the deployed short
+commit SHA (e.g. `v7f3a912`) in production, baked in at build time via `VITE_APP_VERSION`.

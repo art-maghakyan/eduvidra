@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Aws\Sns\MessageValidator;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Vite;
@@ -14,7 +15,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Verifies SNS signatures on the SES bounce/complaint webhook.
+        // Bound here so tests can swap in a validator with a stubbed
+        // certificate client instead of reaching out to AWS.
+        $this->app->singleton(MessageValidator::class, fn () => new MessageValidator);
     }
 
     /**

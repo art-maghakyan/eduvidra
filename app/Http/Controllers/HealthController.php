@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -39,7 +40,15 @@ class HealthController extends Controller
                 $results[$name] = ['ok' => true];
             } catch (Throwable $exception) {
                 $failed = true;
-                $results[$name] = ['ok' => false, 'error' => $exception->getMessage()];
+
+                // The endpoint is public and unauthenticated, and driver
+                // exceptions routinely embed the database host, port, name and
+                // user. Log the detail; return it only when debugging.
+                Log::error("Health check failed: {$name}", ['exception' => $exception]);
+
+                $results[$name] = ['ok' => false] + (config('app.debug')
+                    ? ['error' => $exception->getMessage()]
+                    : []);
             }
         }
 
