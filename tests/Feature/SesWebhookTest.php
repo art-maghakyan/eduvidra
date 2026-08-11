@@ -164,6 +164,48 @@ class SesWebhookTest extends TestCase
         $this->assertDatabaseCount('email_suppressions', 0);
     }
 
+    /**
+     * Bounce and complaint feedback can be wired to separate SNS topics, so the
+     * allow-list accepts a list. The payload is signed with the *second* entry
+     * to prove the whole list is consulted, not just the first.
+     */
+    public function test_it_accepts_a_topic_listed_anywhere_in_the_allow_list(): void
+    {
+        config(['services.ses.webhook.topic_arn' => implode(',', [
+            'arn:aws:sns:eu-central-1:123456789012:ses-complaints',
+            self::TOPIC_ARN,
+        ])]);
+
+        $this->postJson('/webhooks/ses', $this->bouncePayload('Permanent', 'General', ['listed@example.com']))
+            ->assertOk();
+
+        $this->assertDatabaseHas('email_suppressions', ['email' => 'listed@example.com']);
+    }
+
+    public function test_it_tolerates_whitespace_around_allow_list_separators(): void
+    {
+        config(['services.ses.webhook.topic_arn' => ' arn:aws:sns:eu-central-1:123456789012:ses-complaints , '.self::TOPIC_ARN.' ']);
+
+        $this->postJson('/webhooks/ses', $this->bouncePayload('Permanent', 'General', ['spaced@example.com']))
+            ->assertOk();
+
+        $this->assertDatabaseHas('email_suppressions', ['email' => 'spaced@example.com']);
+    }
+
+    public function test_an_unlisted_topic_is_still_rejected_when_several_are_allowed(): void
+    {
+        config(['services.ses.webhook.topic_arn' => implode(',', [
+            'arn:aws:sns:eu-central-1:123456789012:ses-complaints',
+            'arn:aws:sns:eu-central-1:123456789012:ses-bounces',
+        ])]);
+
+        // Signed with self::TOPIC_ARN, which is not in the list above.
+        $this->postJson('/webhooks/ses', $this->bouncePayload('Permanent', 'General', ['victim@example.com']))
+            ->assertStatus(403);
+
+        $this->assertDatabaseCount('email_suppressions', 0);
+    }
+
     // ------------------------------------------------------------ subscriptions
 
     public function test_subscription_confirmation_is_handled(): void
