@@ -1,35 +1,75 @@
-*.log
-.DS_Store
+# --- Secrets & local environment -------------------------------------------
+# Ignore every .env variant by default; example files are opted back in so a
+# new .env.<something> can never be committed by accident.
 .env
 .env.*
 !.env.example
 !.env.production.example
-.phpactor.json
-.phpunit.result.cache
-/.fleet
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
-/docs
 /auth.json
+/storage/*.key
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+
+# --- Dependencies -----------------------------------------------------------
 /node_modules
+/vendor
+
+# --- Build output & runtime state -------------------------------------------
+/public/build
+/public/hot
+/public/storage
+/bootstrap/cache/*.php
+/storage/pail
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+/storage/logs/*
+!/storage/**/.gitignore
+*.log
 /npm-debug.log*
 /yarn-debug.log*
 /yarn-error.log*
 /pnpm-debug.log*
-/bootstrap/cache/*.php
-/public/build
-/public/hot
-/public/storage
-/storage/*.key
-/storage/pail
-/vendor
 /.deploy
+
+# --- Database dumps ---------------------------------------------------------
+*.sql
+*.sqlite
+*.sqlite3
+*.dump
+
+# --- Test & tooling caches --------------------------------------------------
+/.phpunit.cache
+.phpunit.result.cache
 _ide_helper.php
-Homestead.json
-Homestead.yaml
+.phpactor.json
+
+# --- Editors, IDEs & AI assistants ------------------------------------------
+/.idea
+/.vscode
+/.zed
+/.fleet
+/.nova
+/.claude
+/.cursor
+/.aider*
+/.windsurf
+.DS_Store
 Thumbs.db
+
+# --- Vendored UI templates (not our source) ---------------------------------
 /resources/play-tailwind-main/
 /resources/flowbite-admin-dashboard-main/
+
+# --- Local dev scaffolding --------------------------------------------------
+Homestead.json
+Homestead.yaml
+
+# --- Docs -------------------------------------------------------------------
+# docs/ is published: it carries the SES, Horizon, queue and search write-ups.
+# This one is an unfinished internal handoff note, so it stays out.
+/docs/ui-refresh-progress.md
