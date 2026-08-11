@@ -167,6 +167,36 @@ docker compose exec app php artisan tinker --execute="App\Models\EmailSuppressio
 **Test complaint flow:**
 Same as above but Scenario: **Complaint**. Expect `Email suppressed due to complaint` in CloudWatch.
 
+### Changing `SES_WEBHOOK_TOPIC_ARN` (or any env var) in production
+
+Editing `/opt/eduvidra/.env` on a running production stack **does nothing on its own**, and `config:cache` will not help — it will faithfully re-cache the old value.
+
+`docker-compose.prod.yml` supplies configuration through `env_file: .env`, and `.dockerignore` keeps `.env` out of the image. Docker therefore reads the host file **once, when the container is created**, and injects the values as real environment variables. A running container has no `.env` to re-read, so it keeps serving whatever was injected at start-up.
+
+The sequence in production is always:
+
+```bash
+cd /opt/eduvidra
+COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+APP="app-$(cat .deploy/active-color)"
+
+# 1. edit the file
+vi .env                     # ensure exactly one line per key: grep -c SES_WEBHOOK .env
+
+# 2. recreate the container so Docker re-reads .env
+$COMPOSE up -d --force-recreate --no-deps "$APP"
+
+# 3. re-cache and verify the value actually took
+$COMPOSE exec -T "$APP" php artisan config:cache
+$COMPOSE exec -T "$APP" php artisan config:show services
+```
+
+Step 2 briefly drops PHP-FPM. For a zero-downtime change, run `./bin/deploy.sh` instead — it starts the inactive colour with fresh environment, health-checks it, and switches Nginx gracefully.
+
+`queue` and `scheduler` carry the same `env_file`, so recreate those too when the variable is read by jobs rather than by HTTP requests.
+
+This applies only to production. Local dev bind-mounts the source via `docker-compose.override.yml`, so the container reads the real `.env` and `config:cache` alone is enough.
+
 ### Operations
 
 **Remove an address from the suppression list.** Hard bounces are permanent by design, but addresses do get suppressed wrongly — a transient AWS issue reported as permanent, a recycled mailbox, a typo'd test send. There is no automatic expiry, so removal is manual:
@@ -184,7 +214,7 @@ Exit code `0` on removal, `1` if the address was not suppressed. The lookup is c
 | Subscription stays `Pending confirmation` | Webhook not deployed, wrong URL, or CSRF not exempted |
 | No log entries after sending test email | SNS topic not wired to the SES identity, or wrong region |
 | `Invalid payload` 400 in logs | Raw message delivery is enabled on the subscription — it strips the signature envelope and must be off |
-| `Rejected SNS delivery: unrecognised topic` 403 | `SES_WEBHOOK_TOPIC_ARN` is unset, or set to the **subscription** ARN (the one with a trailing UUID) instead of the **topic** ARN |
+| `Rejected SNS delivery: unrecognised topic` 403 | `SES_WEBHOOK_TOPIC_ARN` is unset, truncated, or set to the **subscription** ARN (the one with a trailing UUID) instead of the **topic** ARN. The log line records the ARN actually received — compare it against `config:show services`. If `.env` looks correct but the config does not, the container was not recreated after the edit (see above) |
 | `Rejected SNS delivery: invalid signature` 403 | Raw message delivery enabled, or the payload did not originate from SNS |
 | Bounces silently stop being recorded after a deploy | `SES_WEBHOOK_TOPIC_ARN` missing from the server `.env` — the check fails closed |
 
