@@ -242,8 +242,3 @@ Then on the server, from `/opt/eduvidra`:
 ```
 
 Log groups land under `/eduvidra/prod/*`.
-
-## Version badge
-
-Every page carries a small version stamp bottom-right: `vdev` locally, and the deployed short
-commit SHA (e.g. `v7f3a912`) in production, baked in at build time via `VITE_APP_VERSION`.
