@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\RbacRole;
+use App\Models\EmailSuppression;
 use App\Models\User;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Str;
 use RuntimeException as BaseRuntimeException;
@@ -78,3 +80,27 @@ Artisan::command('user:promote-admin {email}', function (string $email) {
 
     return 0;
 })->purpose('Promote an existing user to admin role');
+
+Artisan::command('mail:unsuppress {email}', function (string $email) {
+    // Matched case-insensitively: SES echoes recipients back in whatever casing
+    // the original message used, which rarely matches what an operator types.
+    $suppression = EmailSuppression::query()
+        ->whereRaw('lower(email) = ?', [Str::lower($email)])
+        ->first();
+
+    if (! $suppression) {
+        $this->error("{$email} is not suppressed.");
+
+        return 1;
+    }
+
+    $suppression->delete();
+
+    // The webhook logs every suppression it adds; log removals too so the
+    // audit trail stays symmetric.
+    Log::info('Suppression removed via console', ['email' => $suppression->email]);
+
+    $this->info("Removed {$suppression->email} from the suppression list.");
+
+    return 0;
+})->purpose('Remove an email address from the bounce/complaint suppression list');
