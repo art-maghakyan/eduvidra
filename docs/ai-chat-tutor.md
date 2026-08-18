@@ -1,6 +1,6 @@
 # AI Chat Tutor (Anthropic API)
 
-**Status:** in progress — Steps 0, 1 and 3 done. Step 2 is next and is the first billed step. This document is the
+**Status:** in progress — Steps 0-4 done. Step 5 (course context injection) is next. This document is the
 context record; re-read it before starting or resuming work.
 
 **Last updated:** 2026-08-18
@@ -9,9 +9,10 @@ context record; re-read it before starting or resuming work.
 
 | | |
 |---|---|
-| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17. Suite: 87 passed / 2 pre-existing skips; Pint clean on 107 files. |
+| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests. Suite: 98 passed; Pint clean on 110 files. |
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
-| **Unblocked next** | Step 4 (persistence wired in) and Step 8 (policy + rate limiting) — both $0. |
+| **Unblocked next** | Step 5 (course context injection, $0 — `count_tokens` is free), then Step 6 (streaming). |
+| **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
 
 ## Overview
@@ -195,10 +196,10 @@ before the previous one's verification passes.
 |---|---|---|---|---|
 | 0 | Console setup + smoke test | `200` + text from host **and** container | <$0.01 | **Done** 2026-08-18 (~$0.0001) |
 | 1 | Config, SDK, driver seam | Fake chunks in tinker | $0 | **Done** 2026-08-18 |
-| 2 | One non-streaming round trip | Answer appears in browser | ~$0.01 | **Ready — next billed step** |
+| 2 | One non-streaming round trip | Answer appears in browser | ~$0.01 | **Done** 2026-08-18 ($0.0002) |
 | 3 | Conversation schema | Feature test passes | $0 | **Done** 2026-08-18 |
-| 4 | Persistence wired in | History survives reload | $0 | **Ready — next** |
-| 5 | Course context injection | `count_tokens` prints prompt size; non-English question gets same-language reply | $0 | Ready |
+| 4 | Persistence wired in | History survives reload | $0 | **Done** 2026-08-18 |
+| 5 | Course context injection | `count_tokens` prints prompt size; non-English question gets same-language reply | $0 | **Ready — next** |
 | 6 | Streaming via SSE | Text streams progressively in Docker | ~$0.05 | Ready after Step 5 |
 | 7 | Cost control | 11th message/day returns 429 | <$0.05 | Ready after Step 6 |
 | 8 | Security | Rate limit trips; cross-user access 403s | $0 | Ready |
@@ -301,6 +302,36 @@ SDK surface, verified:
 
 Unknown event types fall through and are ignored — `ping` arrives at any point and new types
 get added over time.
+
+### Steps 2 and 4 — round trip and persistence (built together)
+
+Step 4 has no meaning without Step 2's request path, so they were built as one change.
+Step 2 was skipped earlier while billing was blocked, then done here.
+
+- `POST /courses/{course:slug}/chat` → `AiChatController::store`, middleware
+  `auth`, `verified`, `role:student`.
+- `SendChatMessageRequest` caps input at 2,000 characters **before** it can cost tokens,
+  and carries the verified-email check (see the security gap in *Current state*).
+- The controller drains the `ChatClient` generator into one string. **Deliberately not
+  streaming yet** — Step 6 swaps this for SSE over the same `ChatClient`, so no second
+  code path appears.
+- `Conversation::firstOrCreate` on `(user_id, course_id, video_id: null)`, racing safely
+  against the partial unique index from Step 3.
+- Both turns persisted; the assistant turn carries the full `ChatResult` token accounting.
+- `CourseController::show` passes a `chat` prop (a closure, so it is only evaluated when
+  needed). The course page stays public; the panel renders only for a verified student and
+  only ever carries that student's own thread.
+- The Vue panel holds **no local message state** — after a successful post it relies on the
+  reloaded props, which is what makes "history survives reload" true rather than merely
+  looking true.
+
+On failure the student's question stays persisted and only the reply is missing, so they
+can see what they asked. `tests/Feature/AiChatTest.php` covers guest, unverified,
+non-student, oversized input, persistence + token accounting, reload, thread reuse, and
+cross-student isolation.
+
+Verified with one real call: 60 input / 25 output tokens, `stop_reason=end_turn`,
+`model=claude-haiku-4-5-20251001`, **$0.000185**.
 
 ### Step 3 — Schema
 
@@ -479,6 +510,9 @@ migration) → transcripts → retrieval.
 | 2026-08-18 | `phpunit.xml` pins `fake` now, not in Step 9 | One line; makes it impossible for any test written between now and Step 9 to spend money |
 | 2026-08-18 | **Two partial unique indexes, not one composite** | A single `UNIQUE(user_id, course_id, video_id)` enforces nothing while `video_id` is null on every row — SQL treats NULLs as distinct. See the correction under Step 3 |
 | 2026-08-18 | Schema changes are verified against Postgres, not just SQLite | Tests run on SQLite but prod is Postgres, and the index is raw DDL. A throwaway PG 17 container is the cheap way to close that gap |
+| 2026-08-18 | Steps 2 and 4 built together | Persistence has nothing to persist without a request path; splitting them would have meant writing the controller twice |
+| 2026-08-18 | Chat UI keeps no local message state | The server is the source of truth, so a reload cannot silently disagree with what the student saw |
+| 2026-08-18 | Verified-email enforced in the Form Request, not by fixing `User` | The `verified` middleware is inert app-wide; making `User` implement `MustVerifyEmail` would change behaviour on `/dashboard` and the profile routes, which is a separate decision |
 
 ## Open questions for later
 

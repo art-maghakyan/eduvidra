@@ -3,6 +3,7 @@
 use App\Enums\RbacPermission;
 use App\Enums\RbacRole;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ProfileController;
@@ -64,5 +65,11 @@ Route::middleware(['auth', 'role:'.RbacRole::STUDENT->value])->group(function ()
 Route::get('/search', SearchController::class)->name('search');
 
 Route::get('/courses/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
+
+// AI study tutor. Students only, and only verified ones, so every request is
+// attributable to a real user — see docs/ai-chat-tutor.md.
+Route::post('/courses/{course:slug}/chat', [AiChatController::class, 'store'])
+    ->middleware(['auth', 'verified', 'role:'.RbacRole::STUDENT->value])
+    ->name('courses.chat.store');
 
 require __DIR__.'/auth.php';
