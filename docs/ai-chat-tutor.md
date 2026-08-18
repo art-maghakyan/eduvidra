@@ -15,6 +15,124 @@ context record; re-read it before starting or resuming work.
 | **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
 
+## Resuming work — start here
+
+Last session ended 2026-08-18 with Steps 0-4 done and committed. Next action is **Step 5**.
+
+### 1. Bring the environment up
+
+```bash
+docker compose up -d
+docker compose exec app php artisan migrate    # no-op if already applied
+curl -s localhost:8000/health                  # expect {"ok":true,...}
+```
+
+**Two traps, in the order you will hit them.**
+
+**Trap 1 — the host Postgres retakes port 5432 on reboot.** This machine has three host
+PG clusters (10 on 5432, 12 on 5433, 14 on 5434). They were stopped by hand on 2026-08-18
+but **not disabled** — `postgresql.service` is still `enabled`, so a reboot brings cluster
+10 back on 5432 and the `db` container cannot bind its published port.
+
+```bash
+pg_lsclusters                                  # all three should read "down"
+sudo systemctl stop postgresql                 # if any are up
+# permanent: sudo systemctl disable --now postgresql
+```
+
+**Trap 2 — a failed `up` leaves a broken container that `up` will not repair.** When the
+port bind fails, the `db` container is still *created*, just with **no network attached**.
+The next `docker compose up -d` then *starts* that broken container instead of recreating
+it, and `docker compose ps` cheerfully reports it as `running`. The symptom is:
+
+```
+SQLSTATE[08006] could not translate host name "db" to address
+```
+
+The fix is not `up -d` again:
+
+```bash
+docker compose up -d --force-recreate db
+docker inspect eduvidra-db --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}'
+# must print eduvidra_eduvidra-network — empty means still broken
+```
+
+### 2. Where the code is
+
+Branch **`feat/ai-chat-tutor`**, four commits off `master`, to be merged at the end:
+
+```
+b1983eb feat(ai): add the tutor chat round trip and persist both turns
+1d87775 docs(ai): add chat tutor plan and record steps 0-3
+b596aff feat(ai): add conversation and message schema
+f75fed2 feat(ai): add Anthropic driver seam behind a fake/real switch
+```
+
+`resources/views/vendor/mail/text/table.blade.php` is modified and **deliberately
+unstaged** — it predates this work and is unrelated.
+
+### 3. Next action — Step 5, course context injection ($0)
+
+`AiChatController::systemPrompt()` is a placeholder: it names the course title and nothing
+else. Step 5 replaces it with the real metadata framing.
+
+- Inject description, tags and lesson titles — the tutor should know the student is on
+  "Loops: for and while in Depth" in a Python course.
+- Keep the explicit "I cannot see the lesson content" instruction. It is already there and
+  is load-bearing: it is what stops the model inventing what an instructor said.
+- Add the language-mirroring line (reply in the student's language).
+- User text must never be concatenated into the system prompt. `ChatClient::stream()`
+  keeps `$system` and `$messages` as separate parameters for exactly this reason.
+
+**Verification costs nothing.** `POST /v1/messages/count_tokens` is free and sits on a
+rate-limit pool separate from message creation, so prompt size can be measured exactly
+without paying for a completion. The SDK method is `$client->messages->countTokens(...)`.
+Only the non-English reply check needs a real call (~$0.004).
+
+Then Step 6 (streaming) — the first step with real cost risk, since a loop is what burns
+credit. The workspace RPM cap is the thing that contains that, not the monthly limit.
+
+### 4. Open decisions waiting on you
+
+| | Decision | Why it is not already done |
+|---|---|---|
+| 1 | Make `User` implement `MustVerifyEmail` | Fixes the inert `verified` middleware app-wide, but immediately starts gating `/dashboard` and the profile routes and mailing existing unverified users. A product decision, not a side effect of this feature |
+| 2 | Add Postgres to CI | CI is SQLite-only; this branch introduced the repo's only raw DDL (`DB::statement` in the conversations migration). A regression there would ship green. ~10 lines in `.gitlab-ci.yml` |
+| 3 | Permanently free port 5432 | `sudo systemctl disable --now postgresql`, or republish the container as `5435:5432` (5433 and 5434 are taken by clusters 12 and 14) |
+| 4 | `composer audit` — 30 advisories across 10 packages | Pre-existing, unrelated to this feature |
+
+### 5. Spend so far
+
+| | Cost |
+|---|---|
+| Step 0 — two smoke calls | ~$0.00014 |
+| Step 2 — one real round trip | $0.000185 |
+| **Total** | **~$0.0004** of $5 |
+
+`ANTHROPIC_DRIVER=fake` in `.env`. Never flip it in the file — pass it per command so it
+cannot be left on by accident:
+
+```bash
+docker compose exec -e ANTHROPIC_DRIVER=real app php ...
+```
+
+### 6. Commands used in this build
+
+```bash
+docker compose exec app php artisan test                      # 98 passing
+docker compose exec app php artisan test --filter=AiChatTest
+docker compose exec app vendor/bin/pint --test                # CI runs this
+docker compose exec vite npm run build                        # validates the Vue SFC
+
+# Schema against real Postgres, without touching the dev database:
+NET=$(docker inspect eduvidra-app --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')
+docker run -d --name pgtest --network "$NET" \
+  -e POSTGRES_DB=pgtest -e POSTGRES_USER=pgtest -e POSTGRES_PASSWORD=pgtest postgres:17-alpine
+docker compose exec -e DB_HOST=pgtest -e DB_DATABASE=pgtest \
+  -e DB_USERNAME=pgtest -e DB_PASSWORD=pgtest app php artisan migrate --force
+docker rm -f pgtest
+```
+
 ## Overview
 
 An AI study assistant on the course detail page. A student types a question, Claude answers
@@ -473,11 +591,14 @@ Unknown event types must be ignored, not thrown on — new ones get added over t
 
 ## Environment notes
 
-- **Port 5432 collides.** A host process listens on `127.0.0.1:5432` while
-  `docker-compose.override.yml` publishes `5432:5432`, so `docker compose up -d` fails to
-  start the `db` container. Step 1 needed no database and was run with
-  `docker compose up -d --no-deps app`. **Step 3 onward needs this resolved** — either stop
-  the host Postgres or republish as `5433:5432`.
+- **Port 5432.** Three host PG clusters exist — 10 on **5432**, 12 on **5433**, 14 on
+  **5434**. Cluster 10 (end-of-life since 2022) collides with the `db` container's published
+  port. All three were stopped by hand on 2026-08-18, which unblocked the dev database, but
+  `postgresql.service` is still **enabled**, so they return on reboot. Permanent options:
+  `sudo systemctl disable --now postgresql`, or republish the container as **`5435:5432`**
+  (note 5433 and 5434 are *not* free). Nothing in the stack needs Postgres exposed to the
+  host at all — `app` reaches `db` on the internal network — so dropping the `ports:` entry
+  also works. See *Resuming work* for the failure mode and the recovery command.
 - `composer audit` reports 30 advisories across 10 packages. Pre-existing, unrelated to this
   feature, but worth a pass at some point.
 
