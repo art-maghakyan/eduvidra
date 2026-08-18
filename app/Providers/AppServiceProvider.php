@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use Anthropic\Client as AnthropicClient;
+use App\Services\Ai\AnthropicChatClient;
+use App\Services\Ai\ChatClient;
+use App\Services\Ai\FakeChatClient;
 use Aws\Sns\MessageValidator;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +23,21 @@ class AppServiceProvider extends ServiceProvider
         // Bound here so tests can swap in a validator with a stubbed
         // certificate client instead of reaching out to AWS.
         $this->app->singleton(MessageValidator::class, fn () => new MessageValidator);
+
+        // The AI tutor's only route to Anthropic. `fake` makes zero network
+        // calls and costs nothing, which covers most of the build; phpunit.xml
+        // pins it on so no test can spend money.
+        $this->app->singleton(ChatClient::class, function () {
+            if (config('anthropic.driver') !== 'real') {
+                return new FakeChatClient;
+            }
+
+            return new AnthropicChatClient(
+                new AnthropicClient(apiKey: config('anthropic.api_key')),
+                config('anthropic.model'),
+                config('anthropic.max_tokens'),
+            );
+        });
     }
 
     /**

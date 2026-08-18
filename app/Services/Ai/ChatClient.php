@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Services\Ai;
+
+use Generator;
+
+/**
+ * The seam between the application and Anthropic. Nothing outside
+ * App\Services\Ai may touch the SDK directly — swap the binding in
+ * AppServiceProvider and the whole feature runs offline for $0.
+ */
+interface ChatClient
+{
+    /**
+     * Stream one assistant turn.
+     *
+     * Yields text fragments in order. The generator's *return value* is a
+     * ChatResult with the token accounting, so callers do:
+     *
+     *     $stream = $client->stream($system, $messages);
+     *     foreach ($stream as $chunk) { ... }
+     *     $result = $stream->getReturn();
+     *
+     * @param  string  $system  System prompt. User text is never concatenated
+     *                          into this — it stays in $messages.
+     * @param  list<array{role: string, content: string}>  $messages
+     * @return Generator<int, string, mixed, ChatResult>
+     */
+    public function stream(string $system, array $messages): Generator;
+}
