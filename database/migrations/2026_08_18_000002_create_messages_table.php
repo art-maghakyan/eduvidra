@@ -17,7 +17,7 @@ return new class extends Migration
             // Token accounting exists from day one — retrofitting it later means
             // no history to analyse. cache_creation_tokens is here even though
             // caching is inert at our prompt size (4,096-token minimum on Haiku
-            // 4.5 vs our ~700-token prefix), because total input is
+            // 4.5 vs our measured 420-token prefix), because total input is
             // input + cache_creation + cache_read and all three must be summed.
             $table->unsignedInteger('input_tokens')->default(0);
             $table->unsignedInteger('output_tokens')->default(0);

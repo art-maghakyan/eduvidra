@@ -68,8 +68,10 @@ Route::get('/courses/{course:slug}', [CourseController::class, 'show'])->name('c
 
 // AI study tutor. Students only, and only verified ones, so every request is
 // attributable to a real user — see docs/ai-chat-tutor.md.
-Route::post('/courses/{course:slug}/chat', [AiChatController::class, 'store'])
+// The reply streams back as server-sent events; the conversation is derived
+// from the authenticated user plus this course, never from a client-supplied id.
+Route::post('/courses/{course:slug}/chat', [AiChatController::class, 'stream'])
     ->middleware(['auth', 'verified', 'role:'.RbacRole::STUDENT->value])
-    ->name('courses.chat.store');
+    ->name('courses.chat.stream');
 
 require __DIR__.'/auth.php';

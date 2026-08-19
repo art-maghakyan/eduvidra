@@ -47,4 +47,21 @@ return [
 
     'max_tokens' => (int) env('ANTHROPIC_MAX_TOKENS', 1024),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Stream timeout
+    |--------------------------------------------------------------------------
+    |
+    | Seconds a streaming reply may run before PHP kills it. Without this the
+    | stream dies at PHP's built-in 30s default (no php.ini is loaded in the
+    | image, so that default is what FPM actually uses — verified, not assumed).
+    |
+    | Keep it BELOW nginx's fastcgi_read_timeout, which is 300s in both
+    | docker/nginx/default.conf and prod.conf. PHP timing out first produces a
+    | logged error; nginx timing out first produces a 504 with no trace of why.
+    |
+    */
+
+    'stream_timeout' => (int) env('ANTHROPIC_STREAM_TIMEOUT', 120),
+
 ];
