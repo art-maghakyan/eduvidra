@@ -3,10 +3,13 @@
 namespace App\Providers;
 
 use Anthropic\Client as AnthropicClient;
+use Anthropic\RequestOptions;
 use App\Services\Ai\AnthropicChatClient;
 use App\Services\Ai\ChatClient;
 use App\Services\Ai\FakeChatClient;
+use App\Services\Ai\IncrementalStreamTransporter;
 use Aws\Sns\MessageValidator;
+use Http\Discovery\Psr18ClientDiscovery;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Vite;
@@ -33,7 +36,16 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new AnthropicChatClient(
-                new AnthropicClient(apiKey: config('anthropic.api_key')),
+                new AnthropicClient(
+                    apiKey: config('anthropic.api_key'),
+                    // Without this the SDK's 8 KB reads buffer the whole reply
+                    // before yielding a single token — see the class docblock.
+                    requestOptions: RequestOptions::with(
+                        streamingTransporter: new IncrementalStreamTransporter(
+                            Psr18ClientDiscovery::find(),
+                        ),
+                    ),
+                ),
                 config('anthropic.model'),
                 config('anthropic.max_tokens'),
             );
