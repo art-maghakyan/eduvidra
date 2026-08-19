@@ -20,8 +20,13 @@ context record; re-read it before starting or resuming work.
 
 ## Resuming work — start here
 
-Last session ended 2026-08-19 with all steps 0-10 done. Next action is the **merge to
-`master`**, once the open decisions below are settled.
+Last session ended 2026-08-19 with **all ten steps done and committed** — twelve commits on
+`feat/ai-chat-tutor`, 137 tests passing, ~$0.06 of the $5 budget spent. No code work is
+outstanding.
+
+**Next action: work through §3, *Before merge*.** Start with the four blocking items; the
+second one (`ANTHROPIC_DRIVER=real` in production) is the one that silently ships a fake
+tutor to real students if missed.
 
 ### 1. Bring the environment up
 
@@ -34,9 +39,10 @@ curl -s localhost:8000/health                  # expect {"ok":true,...}
 **Two traps, in the order you will hit them.**
 
 **Trap 1 — the host Postgres retakes port 5432 on reboot.** This machine has three host
-PG clusters (10 on 5432, 12 on 5433, 14 on 5434). They were stopped by hand on 2026-08-18
-but **not disabled** — `postgresql.service` is still `enabled`, so a reboot brings cluster
-10 back on 5432 and the `db` container cannot bind its published port.
+PG clusters (10 on 5432, 12 on 5433, 14 on 5434). `postgresql.service` is still `enabled`,
+so a reboot brings cluster 10 back on 5432 and the `db` container cannot bind its published
+port. **This has now happened twice** — stopped by hand on 2026-08-18 and again on
+2026-08-19. It will keep happening until decision 3 is taken.
 
 ```bash
 pg_lsclusters                                  # all three should read "down"
@@ -84,20 +90,88 @@ f75fed2 feat(ai): add Anthropic driver seam behind a fake/real switch
 `resources/views/vendor/mail/text/table.blade.php` is modified and **deliberately
 unstaged** — it predates this work and is unrelated.
 
-### 3. Next action — merge to `master`
+#### The whole feature, in files
 
-All ten steps are done. Before merging:
+| File | Role |
+|---|---|
+| `config/anthropic.php` | The **only** file allowed to call `env()` for these values. Driver, key, model, max_tokens, stream_timeout, cache_ttl, daily_message_limit, history budget + floor |
+| `app/Services/Ai/ChatClient.php` | The seam. `stream()` yields text and returns a `ChatResult`; `countTokens()` measures a prompt for free |
+| `app/Services/Ai/AnthropicChatClient.php` | The only class that touches the SDK |
+| `app/Services/Ai/FakeChatClient.php` | Zero-network stand-in, pinned on in `phpunit.xml` |
+| `app/Services/Ai/IncrementalStreamTransporter.php` + `IncrementalReadStream.php` | The fix that makes the SDK actually stream over TLS. **Read its docblock before touching anything streaming** |
+| `app/Services/Ai/TutorPrompt.php` | Builds the system prompt: course context, capability statement, language mirroring, trim notice or summary |
+| `app/Services/Ai/ConversationHistory.php` + `ReplayedHistory.php` | Decides how much of a thread to replay, budgeted by measured tokens |
+| `app/Http/Controllers/AiChatController.php` | Quota → in-flight lock → persist question → stream → persist answer → dispatch jobs |
+| `app/Http/Requests/SendChatMessageRequest.php` | 2,000-character cap and the verified-email check |
+| `app/Jobs/GenerateConversationTitle.php`, `SummariseConversationHistory.php` | The `ai` queue's two jobs |
+| `app/Console/Commands/AiMetrics.php` | Daily CloudWatch metrics via EMF |
+| `app/Console/Commands/AiPromptSize.php` | `dev:ai-prompt-size` — prompt size for free |
+| `resources/js/Pages/Courses/Show.vue` | The panel: fetch + SSE reader, local state only for the turn in flight |
+| `tests/Feature/AiChat*Test.php`, `TutorPromptTest.php`, `IncrementalStreamTest.php` | 5 files, all offline |
 
-- **`ANTHROPIC_DRIVER` must be set to `real` on the production server**, and
-  `ANTHROPIC_API_KEY` set there (or in Secrets Manager). The dev key expires 30 days from
-  creation — see *Workspace and key*.
-- **Run `php artisan horizon:terminate` on deploy** so the new `ai` supervisor is picked up.
-  A running Horizon does not notice a new supervisor in config; this bit during local
-  verification, where the title job sat queued until the worker container was restarted.
-- **Settle the open decisions below.** Only the thread-reset question could still need a
-  migration.
-- `bin/deploy.sh` already runs migrations, so `2026_08_19_000001_add_ai_async_columns` needs
-  nothing special. It was verified up *and* down against the dev Postgres 17.
+Three things in here are counter-intuitive enough that changing them without reading first
+will break something quietly: the **256-byte read cap** (streaming), the **JSON-encoded SSE
+payloads** (newlines), and the **budget/floor gap** (prompt caching).
+
+### 3. Before merge — the checklist
+
+All ten steps are done and committed. Nothing below is code work; it is the set of things
+that must be true before `feat/ai-chat-tutor` goes to `master`.
+
+#### Blocking — the feature is broken in production without these
+
+| | What | Why |
+|---|---|---|
+| 1 | Set **`ANTHROPIC_API_KEY`** on the production server (server `.env` or Secrets Manager — **not** GitLab CI variables) | Without it the driver throws on every request. Prod's `app` service uses `env_file: - .env`, unlike dev |
+| 2 | Set **`ANTHROPIC_DRIVER=real`** in the production `.env` | It defaults to `fake`, so the tutor would ship replying "This is a fake tutor reply…" to real students. **This is the single easiest thing to forget** |
+| 3 | Confirm the key has not **expired** | Dev keys were created with a 30-day expiry, fixed at creation and not extendable. A key created 2026-08-18 dies **2026-09-17**. Expired keys return `401` |
+| 4 | Set the **workspace RPM limit** on `eduvidra-dev` (~20) if not already done | The monthly spend cap does nothing against a runaway loop. This is the layer that contains one |
+
+#### Already handled — do not redo
+
+- **`horizon:terminate` is already in the deploy.** `bin/deploy.sh` is a thin wrapper for
+  `bin/deploy-blue-green.sh`, which runs it at line 150. An earlier note in this document
+  claimed it needed adding; that was wrong. The new `ai` supervisor will be picked up.
+  *(Locally it is not automatic — `docker compose restart queue` after pulling this branch,
+  or the title job sits in the queue doing nothing. That is what happened during
+  verification.)*
+- **Migrations** run in the deploy script. `2026_08_19_000001_add_ai_async_columns` was
+  verified up, down, and up again against the dev Postgres 17.
+- **Elasticsearch is not involved.** Prod runs `SCOUT_DRIVER=database` and this feature does
+  not touch search.
+
+#### Worth deciding before merge, not after
+
+- **Decision 2 (Postgres in CI)** is the one with teeth. CI is SQLite-only, and this branch
+  introduced the repo's only raw DDL — the two partial unique indexes in the conversations
+  migration. A regression there ships green. ~10 lines in `.gitlab-ci.yml`.
+- **Decision 6 (`pm.max_children = 5`)** is the one most likely to bite first in production.
+  Each open stream holds a worker for the whole generation — several seconds. The in-flight
+  lock bounds one student to one worker; it does not stop five students filling the pool and
+  taking the whole site down.
+- **The thread-reset question** (under *Open product decision*, Step 7) is the only
+  outstanding item that would still need a **migration**, because a second thread per
+  `(user, course)` means changing the partial unique index. Everything else can be changed
+  later without one.
+
+#### Housekeeping
+
+- `resources/views/vendor/mail/text/table.blade.php` is still modified and **deliberately
+  unstaged**. It predates this work. Either commit it separately or discard it — do not let
+  it ride along in the merge.
+- The dev database contains a throwaway student, **`sse-check@eduvidra.test`** (password
+  `sse-check-password`, verified, `two_factor_required = false`), created for HTTP-level
+  testing, plus its conversations and probe messages. Harmless, dev-only, never seeded —
+  delete it if you want a clean local dataset.
+- CI runs `vendor/bin/pint --test` and `php artisan test`. Both were green at the last
+  commit: **137 passed, Pint clean on 125 files.**
+
+#### First thing to watch after deploying
+
+`ai:metrics` runs daily at 00:20 and logs to CloudWatch. **`CacheReadTokens` is the number
+to look at first** — it is what decides whether the prompt cache TTL should move from 5
+minutes to 1 hour, the one tuning question left open. `CostUsd` against the $5 prepaid
+balance is the other.
 
 ### 4. Open decisions waiting on you
 
@@ -162,6 +236,32 @@ docker compose exec app php artisan ai:metrics --date=2026-08-19
 docker compose restart queue
 docker compose exec app vendor/bin/pint --test                # CI runs this
 docker compose exec vite npm run build                        # validates the Vue SFC
+
+# Horizon does NOT pick up a new supervisor while running — restart it locally
+# after checking out this branch, or queued jobs sit there untouched.
+docker compose restart queue
+
+# --- Driving the endpoint by hand (this is fiddly; the recipe is worth keeping) ---
+# The panel needs a verified student with two_factor_required = false. One exists
+# in the dev DB: sse-check@eduvidra.test / sse-check-password.
+#
+# 1. Get a session + CSRF cookie, then log in. Use -c AND -b so the jar is
+#    written back: the session rotates on login, and reusing a stale
+#    XSRF-TOKEN gives "419 CSRF token mismatch", not a 401.
+curl -s -c jar.txt -b jar.txt http://localhost:8000/login -o /dev/null
+TOK=$(grep XSRF-TOKEN jar.txt | awk '{print $7}' | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))')
+curl -s -c jar.txt -b jar.txt -X POST http://localhost:8000/login \
+  -H "X-XSRF-TOKEN: $TOK" -H "X-Requested-With: XMLHttpRequest" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"sse-check@eduvidra.test","password":"sse-check-password"}'
+#
+# 2. Re-read the token from the jar before EVERY subsequent request.
+#
+# Two things will interrupt a manual probing session, both by design:
+#   - the rate limiter, after 5 requests in a minute (Step 8)
+#   - the daily quota, after 10 questions in a day (Step 7)
+# Clear the quota by deleting that user's messages; the limiter just needs a
+# minute, or bump config('anthropic.daily_message_limit') for the session.
 
 # Schema against real Postgres, without touching the dev database:
 NET=$(docker inspect eduvidra-app --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')
