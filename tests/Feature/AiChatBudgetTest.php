@@ -130,7 +130,8 @@ class AiChatBudgetTest extends TestCase
     {
         $conversation = $this->threadWith(3);
 
-        [$history, $trimmed] = (new ConversationHistory(12000, 6000))->forConversation($conversation);
+        $replay = (new ConversationHistory(12000, 6000))->forConversation($conversation);
+        [$history, $trimmed] = [$replay->messages, $replay->trimmed];
 
         $this->assertFalse($trimmed);
         $this->assertCount(6, $history);
@@ -141,7 +142,8 @@ class AiChatBudgetTest extends TestCase
         // 40 turns at 500 output tokens each is far past a 12,000 budget.
         $conversation = $this->threadWith(40, outputTokens: 500);
 
-        [$history, $trimmed] = (new ConversationHistory(12000, 6000))->forConversation($conversation);
+        $replay = (new ConversationHistory(12000, 6000))->forConversation($conversation);
+        [$history, $trimmed] = [$replay->messages, $replay->trimmed];
 
         $this->assertTrue($trimmed);
         $this->assertLessThan(80, count($history));
@@ -163,7 +165,7 @@ class AiChatBudgetTest extends TestCase
         // reproduce it, so this fixture uses the 2,000-character maximum.
         $conversation = $this->threadWith(40, outputTokens: 500, questionChars: 2000);
 
-        [$history] = (new ConversationHistory(12000, 6000))->forConversation($conversation);
+        $history = (new ConversationHistory(12000, 6000))->forConversation($conversation)->messages;
 
         // The API rejects a messages array that opens with an assistant turn.
         $this->assertSame('user', $history[0]['role']);

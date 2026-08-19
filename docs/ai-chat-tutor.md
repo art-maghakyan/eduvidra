@@ -1,6 +1,7 @@
 # AI Chat Tutor (Anthropic API)
 
-**Status:** in progress — Steps 0-8 done. Steps 9-10 (tests, async + observability) remain. This document is the
+**Status:** feature complete — Steps 0-10 done. What is left is the merge to `master` and
+the open decisions below. This document is the
 context record; re-read it before starting or resuming work.
 
 **Last updated:** 2026-08-19
@@ -9,9 +10,9 @@ context record; re-read it before starting or resuming work.
 
 | | |
 |---|---|
-| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Step 7** — prompt caching (one breakpoint per request, verified live at 5,594 tokens read back at 0.1x), daily quota with a 429, and a token-budgeted history replay.<br>**Step 8** — the repo's first named rate limiter, plus a per-user in-flight lock that stops a few open streams exhausting the FPM pool. Suite: 126 passed; Pint clean on 119 files. |
+| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Step 7** — prompt caching (one breakpoint per request, verified live at 5,594 tokens read back at 0.1x), daily quota with a 429, and a token-budgeted history replay.<br>**Step 8** — the repo's first named rate limiter, plus a per-user in-flight lock that stops a few open streams exhausting the FPM pool.<br>**Step 10** — Horizon `ai` queue, queued title generation and history summarisation, and a daily CloudWatch metrics command. Suite: 137 passed; Pint clean on 125 files. |
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
-| **Unblocked next** | Step 9 (tests) is largely done incrementally — 126 passing, zero network calls, `ANTHROPIC_DRIVER=fake` pinned in `phpunit.xml`. What remains is Step 10: queued title generation and history summarisation on a new Horizon `ai` queue, plus CloudWatch metrics. |
+| **Unblocked next** | Merge to `master`. Before that: settle the open decisions below — the thread-reset question is the only one that would need a migration, and `pm.max_children = 5` is the one that would bite in production first. |
 | **Biggest find so far** | **The Anthropic PHP SDK does not stream over TLS at its default read size.** It reads the body in 8,192-byte blocks and PHP's OpenSSL stream fills that buffer before returning, so a whole reply — well under 8 KB — arrived in a single read *after* generation finished. It looked exactly like streaming from the outside and was not. Fixed in `App\Services\Ai\IncrementalStreamTransporter`; see Step 6. |
 | **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. Spent to date: **~$0.03**. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
@@ -19,8 +20,8 @@ context record; re-read it before starting or resuming work.
 
 ## Resuming work — start here
 
-Last session ended 2026-08-19 with Steps 0-8 done. Next action is **Step 10** (Step 9 is
-effectively complete — see the steps table).
+Last session ended 2026-08-19 with all steps 0-10 done. Next action is the **merge to
+`master`**, once the open decisions below are settled.
 
 ### 1. Bring the environment up
 
@@ -62,11 +63,12 @@ docker inspect eduvidra-db --format '{{range $k,$v := .NetworkSettings.Networks}
 
 ### 2. Where the code is
 
-Branch **`feat/ai-chat-tutor`**, eleven commits off `master`, to be merged at the end
+Branch **`feat/ai-chat-tutor`**, twelve commits off `master`, to be merged at the end
 (`git log --oneline master..`):
 
 ```
-HEAD    feat(ai): rate limit the tutor and bound concurrent streams
+HEAD    feat(ai): queue titles and summaries, and report usage metrics
+8b19544 feat(ai): rate limit the tutor and bound concurrent streams
 c307033 feat(ai): add the daily quota and the replayed-history budget
 6ff682b feat(ai): cache the replayed conversation prefix
 c67b1d8 feat(ai): stream tutor replies over server-sent events
@@ -82,20 +84,20 @@ f75fed2 feat(ai): add Anthropic driver seam behind a fake/real switch
 `resources/views/vendor/mail/text/table.blade.php` is modified and **deliberately
 unstaged** — it predates this work and is unrelated.
 
-### 3. Next action — Step 10, async and observability
+### 3. Next action — merge to `master`
 
-- New Horizon queue `ai` (existing supervisors cover `default`, `emails`, `reports`,
-  `search` — `config/horizon.php:202+`).
-- **Queued:** conversation title generation, and history summarisation to replace
-  `TutorPrompt::TRIMMED_NOTICE` with an actual summary of the dropped prefix. Both use the
-  same model, so there is no second one to configure. `conversations.title` has been
-  nullable and unused since Step 3, waiting for exactly this.
-- **Never queued:** the reply itself. The student is waiting on it, and a queued job cannot
-  stream into an open HTTP connection.
-- CloudWatch metrics: tokens/day, cost/day, p95 latency. `cache_read_tokens` is the one to
-  watch first — it decides whether the cache TTL should move from 5m to 1h.
+All ten steps are done. Before merging:
 
-Step 9's only gap is an opt-in live smoke test, skipped unless an env flag is set.
+- **`ANTHROPIC_DRIVER` must be set to `real` on the production server**, and
+  `ANTHROPIC_API_KEY` set there (or in Secrets Manager). The dev key expires 30 days from
+  creation — see *Workspace and key*.
+- **Run `php artisan horizon:terminate` on deploy** so the new `ai` supervisor is picked up.
+  A running Horizon does not notice a new supervisor in config; this bit during local
+  verification, where the title job sat queued until the worker container was restarted.
+- **Settle the open decisions below.** Only the thread-reset question could still need a
+  migration.
+- `bin/deploy.sh` already runs migrations, so `2026_08_19_000001_add_ai_async_columns` needs
+  nothing special. It was verified up *and* down against the dev Postgres 17.
 
 ### 4. Open decisions waiting on you
 
@@ -119,7 +121,8 @@ Step 9's only gap is an opt-in live smoke test, skipped unless an env flag is se
 | Step 6 — diagnosing the SDK buffering (raw curl, raw Guzzle, instrumented SDK, read-size A/B ×3) | ~$0.018 |
 | Step 6 — verifying the fix, including one end-to-end run through nginx | ~$0.008 |
 | Prompt caching — token growth measurement ($0, `count_tokens`) plus two live verification runs | ~$0.019 |
-| **Total** | **~$0.05** of $5 |
+| Step 10 — verifying the title and summariser prompts against the real API | ~$0.006 |
+| **Total** | **~$0.06** of $5 |
 
 `ANTHROPIC_DRIVER=fake` in `.env`. Never flip it in the file — pass it per command so it
 cannot be left on by accident:
@@ -131,7 +134,7 @@ docker compose exec -e ANTHROPIC_DRIVER=real app php ...
 ### 6. Commands used in this build
 
 ```bash
-docker compose exec app php artisan test                      # 126 passing
+docker compose exec app php artisan test                      # 137 passing
 docker compose exec app php artisan test --filter=AiChatTest
 docker compose exec app php artisan test --filter=TutorPromptTest
 
@@ -150,6 +153,13 @@ curl -sS -N -b jar.txt -X POST http://localhost:8000/courses/python-for-beginner
 # Daily quota, end to end (fake driver, $0) — loop the POST above until it 429s.
 docker compose exec app php artisan test --filter=AiChatBudgetTest
 docker compose exec app php artisan test --filter=AiChatSecurityTest
+docker compose exec app php artisan test --filter=AiChatAsyncTest
+
+# A day's usage as CloudWatch metrics (also runs daily at 00:20).
+docker compose exec app php artisan ai:metrics --date=2026-08-19
+
+# Horizon does NOT pick up a new supervisor while running.
+docker compose restart queue
 docker compose exec app vendor/bin/pint --test                # CI runs this
 docker compose exec vite npm run build                        # validates the Vue SFC
 
@@ -358,7 +368,7 @@ before the previous one's verification passes.
 | 7 | Cost control | 11th message/day returns 429 | <$0.05 | **Done** 2026-08-19 ($0 — `count_tokens` and the fake driver covered all of it) |
 | 8 | Security | Rate limit trips; cross-user access 403s | $0 | **Done** 2026-08-19 ($0) |
 | 9 | Tests | `artisan test` green, zero network calls | $0 | **Effectively done** — 126 passing, no network calls, driver pinned in `phpunit.xml`. Only the opt-in live smoke test is missing |
-| 10 | Async + observability | Titles via Horizon; CloudWatch metrics | small | **Ready — next** |
+| 10 | Async + observability | Titles via Horizon; CloudWatch metrics | ~$0.006 | **Done** 2026-08-19 |
 
 ### Step 0 — Smoke test (hard gate)
 
@@ -1020,12 +1030,98 @@ recorded as an open decision rather than made as a side effect of this feature.
 
 ### Step 10 — Async and observability
 
-- New Horizon queue `ai` (existing supervisors cover `default`, `emails`, `reports`,
-  `search` — `config/horizon.php:202+`).
-- **Queued**: title generation, history summarisation (same model — no second one to
-  configure). **Never queued**: the chat reply itself — the user is waiting on it, and a
-  queued job cannot stream to an open HTTP connection.
-- CloudWatch metrics: tokens/day, cost/day, p95 latency.
+Built 2026-08-19.
+
+#### The `ai` queue
+
+`supervisor-5` in `config/horizon.php`, on queue `ai`, added to `defaults` and to both the
+`production` and `local` environment blocks. One process, `memory 128`, matching the
+existing supervisors on a t3.micro shared with the app, Nginx and Redis.
+
+Two differences from the other supervisors, both deliberate:
+
+- **`tries` is 1, not 3.** Every attempt spends money and neither job is worth paying for
+  three times. A failed title just stays null.
+- **`timeout` is 180, not 90.** These jobs call the Anthropic API.
+
+**Queued:** conversation titles, history summarisation. **Never queued:** the reply itself —
+the student is waiting on it, and a queued job cannot stream into an open HTTP connection.
+
+> **Deploy note.** A running Horizon does not pick up a new supervisor from config. This bit
+> during local verification: the title job sat in the `ai` queue doing nothing until the
+> worker container was restarted. `bin/deploy.sh` must run `horizon:terminate`.
+
+#### Titles
+
+`GenerateConversationTitle`, dispatched after the assistant turn is persisted — never
+before, or a worker could read a half-written thread — and only when `title` is still null.
+`conversations.title` has been nullable and unused since Step 3, waiting for exactly this.
+
+Verified against the real API on a three-turn thread about lists and tuples:
+
+> **List vs tuple mutability differences**
+
+Five words, no quotes, no preamble. The result is truncated at 60 characters regardless,
+because a model that ignores "at most six words" would otherwise write an essay into a
+column meant for a list row.
+
+#### Summarisation — closing the loop on Step 7
+
+Step 7 left `TutorPrompt::TRIMMED_NOTICE`, an apology for having dropped older turns.
+`SummariseConversationHistory` replaces it with what those turns actually contained.
+
+- It asks `ConversationHistory` where the replay now starts, and summarises everything
+  before that.
+- **The previous summary is folded back into the next one**, so nothing is lost across
+  successive trims — each run summarises the summary plus what has been dropped since.
+- `summarised_through_message_id` records what is already covered, so an unchanged thread
+  costs nothing on a second run. There is a test for that: every run is a real API call.
+- The summary is delimited and framed as reference data in the prompt for the same reason
+  the course block is — it is assembled from the student's own words and must never be able
+  to act as instructions.
+
+Verified against the real API. From three turns about lists and tuples it produced what was
+asked *and* what the student was like:
+
+> The student appears to be a beginner learning Python fundamentals. No confusion was
+> expressed; they seem to have understood the explanations and were asking clarifying
+> questions to deepen their practical understanding.
+
+That last part is the reason to summarise rather than truncate: the tutor keeps knowing who
+it is talking to.
+
+**A bug this found.** Forcing the budget low enough that trimming kept *nothing* produced an
+empty messages array, which is a 400 from the API. The live request path never gets there —
+the question is persisted before the replay is built, so the newest message is always a user
+turn — but a background job replaying an old thread does. `ConversationHistory` now falls
+back to the most recent question.
+
+#### Metrics
+
+`php artisan ai:metrics [--date=]`, scheduled daily at 00:20 so the day it reports on is
+closed. Emits **CloudWatch Embedded Metric Format** as a log line rather than calling
+`PutMetricData`.
+
+That choice is worth the sentence: logs already reach CloudWatch through the `awslogs` Docker
+driver in production, so EMF needs no AWS client, no runtime credentials and no extra IAM
+permission — and it degrades to an ordinary log line in development instead of failing.
+`PutMetricData` remains available if wanted; the instance role carries
+`CloudWatchAgentServerPolicy`, which grants it (`bin/attach-cloudwatch-policy.sh`).
+
+Namespace `Eduvidra/AiTutor`, dimensioned by `Environment`: `Turns`, `InputTokens`,
+`CacheWriteTokens`, `CacheReadTokens`, `OutputTokens`, `CostUsd`, `LatencyP95Ms`,
+`LatencyP50Ms`.
+
+**The four token classes are priced separately, never summed.** Input is $1.00/MTok, cache
+writes $1.25, cache reads $0.10 and output $5.00 — one million of each is **$7.35**, where
+summing the counts and pricing them as one number would report $8.00. A test asserts that
+figure.
+
+`messages.duration_ms` is new and populated from wall time around the generation. A stream
+has no single response time in the access log, so p95 latency has nowhere else to come from.
+
+**`CacheReadTokens` is the number to watch first** — it decides whether the cache TTL should
+move from 5 minutes to 1 hour, which is the one open tuning question Step 7 left behind.
 
 ## Environment notes
 
@@ -1073,6 +1169,10 @@ migration) → transcripts → retrieval.
 | 2026-08-18 | Schema changes are verified against Postgres, not just SQLite | Tests run on SQLite but prod is Postgres, and the index is raw DDL. A throwaway PG 17 container is the cheap way to close that gap |
 | 2026-08-18 | Steps 2 and 4 built together | Persistence has nothing to persist without a request path; splitting them would have meant writing the controller twice |
 | 2026-08-18 | Chat UI keeps no local message state | The server is the source of truth, so a reload cannot silently disagree with what the student saw |
+| 2026-08-19 | CloudWatch metrics via EMF log lines, not `PutMetricData` | Logs already reach CloudWatch through the awslogs driver, so EMF needs no AWS client, no runtime credentials and no extra IAM permission — and it degrades to a plain log line in dev instead of failing |
+| 2026-08-19 | The four token classes are priced separately in metrics | Input, cache write, cache read and output are $1.00 / $1.25 / $0.10 / $5.00 per MTok. Summing the counts first would misreport cost by 9% at equal volumes |
+| 2026-08-19 | `tries = 1` on the `ai` queue | Every attempt spends money and neither job is worth paying for three times. A failed title stays null |
+| 2026-08-19 | Each summarisation folds in the previous summary | Otherwise a second trim loses whatever the first one had already compressed |
 | 2026-08-19 | A per-user in-flight lock, on top of the rate limiter | An open stream holds an FPM worker and the pool is 5, so a few concurrent streams take down the whole site. A per-minute limiter cannot stop that — five requests fit in one second |
 | 2026-08-19 | `throttle:ai-chat` listed last in the route middleware | The limiter keys on `$request->user()`; placed before `auth` it silently degrades to per-IP, which is exactly what students behind a shared NAT must not get |
 | 2026-08-19 | `post_max_size` / `client_max_body_size` left alone | Lowering them is a genuine hardening win with no uploads in the app, but it affects every route — a global change should not be a side effect of this feature |
@@ -1100,7 +1200,8 @@ migration) → transcripts → retrieval.
   thread per `(user, course)` means changing the partial unique index.
 - ~~Enable prompt caching in Step 7?~~ **Done 2026-08-19** — see *Prompt caching* under
   Step 7. What remains open is the **TTL**: the 5-minute default only helps inside a single
-  sitting. Watch `cache_read_tokens` before spending 2x on 1h writes.
+  sitting. `ai:metrics` now reports `CacheReadTokens` daily, which is the number that
+  answers it — watch it before spending 2x on 1h writes.
 - **Does the history cap kill caching?** The two Step 7 features pull against each other: a
   cap tight enough to hold the prompt under 4,096 tokens makes caching permanently inert.
   Set the cap above the floor, or accept that caching only ever applies to threads the cap

@@ -42,21 +42,20 @@ class ConversationHistory
         );
     }
 
-    /**
-     * The messages to replay, oldest first, and whether anything was dropped.
-     *
-     * @return array{0: list<array{role: string, content: string}>, 1: bool}
-     */
-    public function forConversation(Conversation $conversation): array
+    public function forConversation(Conversation $conversation): ReplayedHistory
     {
         $messages = $conversation->messages()
             ->orderBy('id')
-            ->get(['role', 'content', 'output_tokens']);
+            ->get(['id', 'role', 'content', 'output_tokens']);
 
         $total = $messages->sum(fn (Message $m) => $this->tokensFor($m));
 
         if ($total <= $this->budget) {
-            return [$this->shape($messages->all()), false];
+            return new ReplayedHistory(
+                $this->shape($messages->all()),
+                false,
+                $messages->first()?->id,
+            );
         }
 
         // Over budget: keep the newest turns that fit under the floor, not just
@@ -83,7 +82,22 @@ class ConversationHistory
             array_shift($kept);
         }
 
-        return [$this->shape($kept), count($kept) < $messages->count()];
+        // Shifting can empty the list — a thread whose newest message is an
+        // assistant turn, which the live request path never produces because
+        // the question is persisted first, but a background job replaying an
+        // old thread does. An empty messages array is a 400 from the API, so
+        // fall back to the most recent question.
+        if ($kept === []) {
+            $lastQuestion = $messages->last(fn (Message $m) => $m->role === 'user');
+
+            $kept = $lastQuestion === null ? [] : [$lastQuestion];
+        }
+
+        return new ReplayedHistory(
+            $this->shape($kept),
+            count($kept) < $messages->count(),
+            $kept === [] ? null : $kept[0]->id,
+        );
     }
 
     /**

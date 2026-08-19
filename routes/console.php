@@ -16,6 +16,10 @@ use Throwable as BaseThrowable;
 
 Schedule::command('horizon:snapshot')->everyMinute();
 
+// AI tutor usage for the previous day, as CloudWatch metrics. Runs after
+// midnight so the day it reports on is closed.
+Schedule::command('ai:metrics')->dailyAt('00:20');
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');

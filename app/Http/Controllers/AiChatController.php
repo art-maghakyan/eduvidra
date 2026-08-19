@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SendChatMessageRequest;
+use App\Jobs\GenerateConversationTitle;
+use App\Jobs\SummariseConversationHistory;
 use App\Models\Conversation;
 use App\Models\Course;
 use App\Models\Message;
@@ -82,8 +84,8 @@ class AiChatController extends Controller
         // Built before the response is returned, so a failure assembling the
         // prompt is an ordinary 500 rather than a half-sent stream.
         try {
-            [$history, $trimmed] = ConversationHistory::fromConfig()->forConversation($conversation);
-            $system = TutorPrompt::forCourse($course, $trimmed);
+            $replay = ConversationHistory::fromConfig()->forConversation($conversation);
+            $system = TutorPrompt::forCourse($course, $replay->trimmed, $conversation->summary);
         } catch (Throwable $e) {
             // Nothing is streaming yet, so the lock has to be freed here or the
             // student is locked out until it expires.
@@ -92,14 +94,15 @@ class AiChatController extends Controller
             throw $e;
         }
 
-        return response()->eventStream(function () use ($chat, $system, $history, $conversation, $lock) {
+        return response()->eventStream(function () use ($chat, $system, $replay, $conversation, $lock) {
             $answer = '';
             $result = null;
             $message = null;
             $completed = false;
+            $startedAt = microtime(true);
 
             try {
-                $stream = $chat->stream($system, $history);
+                $stream = $chat->stream($system, $replay->messages);
 
                 foreach ($stream as $chunk) {
                     $answer .= $chunk;
@@ -126,7 +129,12 @@ class AiChatController extends Controller
                 // Also runs when PHP destroys this generator because the student
                 // closed the tab mid-reply. The tokens are billed either way, so
                 // whatever arrived is persisted rather than thrown away.
-                $message = $this->persistAnswer($conversation, $answer, $result);
+                $message = $this->persistAnswer(
+                    $conversation,
+                    $answer,
+                    $result,
+                    (int) round((microtime(true) - $startedAt) * 1000),
+                );
 
                 // Freed here rather than left to expire, so a student can ask
                 // again the moment the previous answer finishes.
@@ -134,6 +142,17 @@ class AiChatController extends Controller
             }
 
             if ($completed && $message !== null) {
+                // Dispatched after the turn is safely stored, so a queue worker
+                // can never read a half-written thread. Both are best-effort:
+                // the reply is already delivered either way.
+                if ($conversation->title === null) {
+                    GenerateConversationTitle::dispatch($conversation->id)->onQueue('ai');
+                }
+
+                if ($replay->trimmed) {
+                    SummariseConversationHistory::dispatch($conversation->id)->onQueue('ai');
+                }
+
                 yield new StreamedEvent('done', self::payload(['id' => $message->id]));
             }
         }, endStreamWith: null);
@@ -147,7 +166,7 @@ class AiChatController extends Controller
      * are unknown and the turn is marked incomplete rather than left looking
      * like a clean answer.
      */
-    private function persistAnswer(Conversation $conversation, string $answer, ?ChatResult $result): ?Message
+    private function persistAnswer(Conversation $conversation, string $answer, ?ChatResult $result, int $durationMs): ?Message
     {
         if ($answer === '') {
             return null;
@@ -165,6 +184,10 @@ class AiChatController extends Controller
             'cache_read_tokens' => $result?->cacheReadTokens ?? 0,
             'model' => $result?->model,
             'stop_reason' => $result?->stopReason ?? 'incomplete',
+            // Wall time for the whole generation. A stream has no single
+            // response time in the access log, so p95 latency has nowhere else
+            // to come from.
+            'duration_ms' => $durationMs,
         ]);
 
         $conversation->forceFill(['last_message_at' => now()])->save();

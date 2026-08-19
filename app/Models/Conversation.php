@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * video_id is a forward seam and is always null until a lesson page exists —
  * see docs/ai-chat-tutor.md.
  */
-#[Fillable(['user_id', 'course_id', 'video_id', 'title', 'last_message_at'])]
+#[Fillable(['user_id', 'course_id', 'video_id', 'title', 'summary', 'summarised_through_message_id', 'last_message_at'])]
 class Conversation extends Model
 {
     protected function casts(): array

@@ -13,6 +13,7 @@ use App\Services\Ai\ChatResult;
 use App\Services\Ai\FakeChatClient;
 use Database\Seeders\RbacSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -299,6 +300,11 @@ class AiChatTest extends TestCase
             'description' => 'A lesson.',
             'duration_seconds' => 300,
         ]);
+
+        // Tests run on the sync queue, so the queued title job would otherwise
+        // run inline and overwrite what the recorder captured with its own
+        // prompt. Faking the queue keeps this assertion about the tutor call.
+        Queue::fake();
 
         $recorder = new RecordingChatClient;
         $recorder->delayMicroseconds = 0;

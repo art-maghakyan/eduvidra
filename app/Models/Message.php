@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'cache_read_tokens',
     'model',
     'stop_reason',
+    'duration_ms',
 ])]
 class Message extends Model
 {
@@ -32,6 +33,7 @@ class Message extends Model
             'output_tokens' => 'integer',
             'cache_creation_tokens' => 'integer',
             'cache_read_tokens' => 'integer',
+            'duration_ms' => 'integer',
         ];
     }
 
