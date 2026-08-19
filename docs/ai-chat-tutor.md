@@ -1,6 +1,6 @@
 # AI Chat Tutor (Anthropic API)
 
-**Status:** in progress — Steps 0-7 done. Step 8 (security) is next. This document is the
+**Status:** in progress — Steps 0-8 done. Steps 9-10 (tests, async + observability) remain. This document is the
 context record; re-read it before starting or resuming work.
 
 **Last updated:** 2026-08-19
@@ -9,9 +9,9 @@ context record; re-read it before starting or resuming work.
 
 | | |
 |---|---|
-| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Step 7** — prompt caching (one breakpoint per request, verified live at 5,594 tokens read back at 0.1x), daily quota with a 429, and a token-budgeted history replay. Suite: 121 passed; Pint clean on 118 files. |
+| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Step 7** — prompt caching (one breakpoint per request, verified live at 5,594 tokens read back at 0.1x), daily quota with a 429, and a token-budgeted history replay.<br>**Step 8** — the repo's first named rate limiter, plus a per-user in-flight lock that stops a few open streams exhausting the FPM pool. Suite: 126 passed; Pint clean on 119 files. |
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
-| **Unblocked next** | Step 8 (security): an `ai-chat` rate limiter keyed by user id. Note the repo still has **no** `RateLimiter::for` definitions at all, and the conversation-id policy is moot — see Step 6. |
+| **Unblocked next** | Step 9 (tests) is largely done incrementally — 126 passing, zero network calls, `ANTHROPIC_DRIVER=fake` pinned in `phpunit.xml`. What remains is Step 10: queued title generation and history summarisation on a new Horizon `ai` queue, plus CloudWatch metrics. |
 | **Biggest find so far** | **The Anthropic PHP SDK does not stream over TLS at its default read size.** It reads the body in 8,192-byte blocks and PHP's OpenSSL stream fills that buffer before returning, so a whole reply — well under 8 KB — arrived in a single read *after* generation finished. It looked exactly like streaming from the outside and was not. Fixed in `App\Services\Ai\IncrementalStreamTransporter`; see Step 6. |
 | **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. Spent to date: **~$0.03**. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
@@ -19,7 +19,8 @@ context record; re-read it before starting or resuming work.
 
 ## Resuming work — start here
 
-Last session ended 2026-08-19 with Steps 0-7 done. Next action is **Step 8**.
+Last session ended 2026-08-19 with Steps 0-8 done. Next action is **Step 10** (Step 9 is
+effectively complete — see the steps table).
 
 ### 1. Bring the environment up
 
@@ -61,11 +62,12 @@ docker inspect eduvidra-db --format '{{range $k,$v := .NetworkSettings.Networks}
 
 ### 2. Where the code is
 
-Branch **`feat/ai-chat-tutor`**, ten commits off `master`, to be merged at the end
+Branch **`feat/ai-chat-tutor`**, eleven commits off `master`, to be merged at the end
 (`git log --oneline master..`):
 
 ```
-HEAD    feat(ai): add the daily quota and the replayed-history budget
+HEAD    feat(ai): rate limit the tutor and bound concurrent streams
+c307033 feat(ai): add the daily quota and the replayed-history budget
 6ff682b feat(ai): cache the replayed conversation prefix
 c67b1d8 feat(ai): stream tutor replies over server-sent events
 475e783 fix(ai): make the Anthropic SDK stream over TLS
@@ -80,19 +82,20 @@ f75fed2 feat(ai): add Anthropic driver seam behind a fake/real switch
 `resources/views/vendor/mail/text/table.blade.php` is modified and **deliberately
 unstaged** — it predates this work and is unrelated.
 
-### 3. Next action — Step 8, security ($0)
+### 3. Next action — Step 10, async and observability
 
-- **Rate limiting.** This repo still has **no** `RateLimiter::for` definitions anywhere. Add
-  an `ai-chat` limiter keyed by **user id, not IP** — students share NATs — plus a burst
-  limiter. This is separate from Step 7's daily quota: that is a business cap measured in
-  questions per day, this is an abuse cap measured in requests per minute.
-- **Prompt injection** is already handled by construction and needs no new work: the system
-  prompt and user text are separate parameters, the course block is framed as reference
-  data, and the endpoint has no tools, no DB access and no file access, so the worst case
-  for a successful injection is a rude answer. There is a test for the split.
-- **Authorisation** needs no policy — the route takes no conversation id. See Step 6.
-- What is genuinely left is the limiter and a check that an oversized body is rejected
-  before it reaches PHP's memory, not just by the Form Request.
+- New Horizon queue `ai` (existing supervisors cover `default`, `emails`, `reports`,
+  `search` — `config/horizon.php:202+`).
+- **Queued:** conversation title generation, and history summarisation to replace
+  `TutorPrompt::TRIMMED_NOTICE` with an actual summary of the dropped prefix. Both use the
+  same model, so there is no second one to configure. `conversations.title` has been
+  nullable and unused since Step 3, waiting for exactly this.
+- **Never queued:** the reply itself. The student is waiting on it, and a queued job cannot
+  stream into an open HTTP connection.
+- CloudWatch metrics: tokens/day, cost/day, p95 latency. `cache_read_tokens` is the one to
+  watch first — it decides whether the cache TTL should move from 5m to 1h.
+
+Step 9's only gap is an opt-in live smoke test, skipped unless an env flag is set.
 
 ### 4. Open decisions waiting on you
 
@@ -102,6 +105,8 @@ unstaged** — it predates this work and is unrelated.
 | 2 | Add Postgres to CI | CI is SQLite-only; this branch introduced the repo's only raw DDL (`DB::statement` in the conversations migration). A regression there would ship green. ~10 lines in `.gitlab-ci.yml` |
 | 3 | Permanently free port 5432 | `sudo systemctl disable --now postgresql`, or republish the container as `5435:5432` (5433 and 5434 are taken by clusters 12 and 14) |
 | 4 | `composer audit` — 30 advisories across 10 packages | Pre-existing, unrelated to this feature |
+| 5 | Lower `post_max_size` (8M) and `client_max_body_size` (20m) | The app has no file uploads at all, so both are far larger than anything legitimate needs — but the change affects every route, not just the tutor |
+| 6 | Raise `pm.max_children` above 5 | Each open tutor stream holds one worker. The in-flight lock bounds one student to one worker; it does not stop five students from filling the pool |
 
 ### 5. Spend so far
 
@@ -126,7 +131,7 @@ docker compose exec -e ANTHROPIC_DRIVER=real app php ...
 ### 6. Commands used in this build
 
 ```bash
-docker compose exec app php artisan test                      # 121 passing
+docker compose exec app php artisan test                      # 126 passing
 docker compose exec app php artisan test --filter=AiChatTest
 docker compose exec app php artisan test --filter=TutorPromptTest
 
@@ -144,6 +149,7 @@ curl -sS -N -b jar.txt -X POST http://localhost:8000/courses/python-for-beginner
 
 # Daily quota, end to end (fake driver, $0) — loop the POST above until it 429s.
 docker compose exec app php artisan test --filter=AiChatBudgetTest
+docker compose exec app php artisan test --filter=AiChatSecurityTest
 docker compose exec app vendor/bin/pint --test                # CI runs this
 docker compose exec vite npm run build                        # validates the Vue SFC
 
@@ -350,9 +356,9 @@ before the previous one's verification passes.
 | 5 | Course context injection | `count_tokens` prints prompt size; non-English question gets same-language reply | $0 | **Done** 2026-08-19 ($0.0038 for the behaviour checks) |
 | 6 | Streaming via SSE | Text streams progressively in Docker | ~$0.05 | **Done** 2026-08-19 (~$0.026 — mostly diagnosing the SDK) |
 | 7 | Cost control | 11th message/day returns 429 | <$0.05 | **Done** 2026-08-19 ($0 — `count_tokens` and the fake driver covered all of it) |
-| 8 | Security | Rate limit trips; cross-user access 403s | $0 | **Ready — next** (the conversation-id policy is moot — see Step 6) |
-| 9 | Tests | `artisan test` green, zero network calls | $0 | Partly done (see Steps 1 and 5) |
-| 10 | Async + observability | Titles via Horizon; CloudWatch metrics | small | Ready after Step 9 |
+| 8 | Security | Rate limit trips; cross-user access 403s | $0 | **Done** 2026-08-19 ($0) |
+| 9 | Tests | `artisan test` green, zero network calls | $0 | **Effectively done** — 126 passing, no network calls, driver pinned in `phpunit.xml`. Only the opt-in live smoke test is missing |
+| 10 | Async + observability | Titles via Horizon; CloudWatch metrics | small | **Ready — next** |
 
 ### Step 0 — Smoke test (hard gate)
 
@@ -932,20 +938,74 @@ means *unknown*, not *empty*, and falls back to the estimate.
 
 ### Step 8 — Security
 
-- **Rate limiting** — this repo currently has **no** `RateLimiter::for` definitions at all.
-  Add an `ai-chat` limiter keyed by **user ID, not IP** (students share NATs), plus a burst
-  limiter.
-- **Prompt injection** — users control the input, so treat it as hostile: instructions stay
-  in the `system` parameter (never concatenate user text into it); course context is wrapped
-  in delimiters framed as reference data, not instructions; and — the part that actually
-  matters — **the endpoint gets no capabilities worth hijacking**. No tools, no DB access,
-  no file access in v1. The worst case for a successful injection is a rude answer.
-- **Authorisation** — ~~an `AiConversationPolicy` verifying the thread belongs to the
-  requester~~. Resolved by design in Step 6 instead: the streaming route accepts no
-  conversation id, deriving the thread from the authenticated user plus the course slug, so
-  there is nothing to enumerate. A policy is needed again only if some future route takes a
-  thread id.
-- Validate and cap input length in a Form Request before it costs tokens.
+Built 2026-08-19. Two of the four items in the original plan turned out to need no work,
+and the item that mattered most was not in the plan at all.
+
+#### Rate limiting — the repo's first named limiter
+
+`RateLimiter::for('ai-chat', …)` in `AppServiceProvider::boot()`. The plan's note that the
+repo had **no** `RateLimiter::for` definitions was accurate: the auth controllers throttle
+imperatively with `RateLimiter::hit`, and `routes/auth.php` uses `throttle:6,1`, but no
+named limiter existed.
+
+| Limit | Value |
+|---|---|
+| Burst | 5 per minute |
+| Sustained | 30 per hour |
+
+**Keyed by user id, never IP** — students behind one school or household NAT would otherwise
+share a single allowance. `throttle:ai-chat` is listed **last** in the route middleware so
+`$request->user()` is populated by the time the limiter builds its key; put it first and it
+silently degrades to per-IP.
+
+This is not redundant with Step 7's daily quota. The quota is a business cap in questions per
+day and is enforced *inside* the controller, so a student who is over it can still hammer the
+endpoint — each rejection costs a database query and an FPM worker while spending no tokens.
+The limiter is what makes that cheap to refuse.
+
+Verified through nginx: five requests returned `200`, the sixth returned
+`429 {"message":"You are sending questions faster than the tutor can answer them…"}`.
+
+#### The hole that was not in the plan: FPM pool exhaustion
+
+An open SSE stream holds **one PHP-FPM worker for its entire duration**, and
+`pm.max_children` is **5**. Five concurrent streams therefore take down the whole site — not
+just the tutor, but every page, including the Inertia reload the chat panel itself performs
+when a stream ends.
+
+**A per-minute rate limiter cannot prevent this**, because five requests can arrive within
+the same second and the limiter counts requests, not concurrency.
+
+The fix is a per-user lock held for the life of the stream
+(`Cache::lock("ai-chat:in-flight:{id}", stream_timeout + 30)`). A second request while one is
+still open gets a 429 telling the student to wait. The lock is released in the same `finally`
+that persists a partial answer, so it is freed when the student closes the tab as well as on
+normal completion, and its TTL is a backstop for a hard process kill. Releasing a lock that
+has already expired throws rather than returning false, so that is caught and logged.
+
+This bounds one student to one worker. It does **not** bound five different students, which is
+a capacity question rather than a security one — raise `pm.max_children`, or revisit the
+rejected Node sidecar, if concurrency ever becomes real.
+
+#### Items that needed no work
+
+- **Prompt injection.** Already handled by construction: `ChatClient::stream()` keeps
+  `$system` and `$messages` as separate parameters, the course block is delimited and framed
+  as reference data, and the endpoint has no tools, no database access and no file access —
+  so the worst case for a successful injection is a rude answer. Step 5's
+  `test_the_course_context_reaches_the_model_and_the_question_stays_out_of_the_system_prompt`
+  asserts the split using an injection-shaped question.
+- **Authorisation.** No `AiConversationPolicy` is needed: the route accepts no conversation
+  id, deriving the thread from the authenticated user plus the course slug. See Step 6.
+- **Input length.** Capped at 2,000 characters in `SendChatMessageRequest` since Step 2,
+  before it can cost tokens.
+
+#### Left deliberately alone
+
+`post_max_size` is **8M** and `client_max_body_size` is 20m in prod, both far larger than a
+2,000-character question needs. Lowering them is a real hardening win — the app has **no file
+uploads anywhere** in `app/Http` — but it is a global change affecting every route, so it is
+recorded as an open decision rather than made as a side effect of this feature.
 
 ### Step 9 — Testing without the real API
 
@@ -1013,6 +1073,9 @@ migration) → transcripts → retrieval.
 | 2026-08-18 | Schema changes are verified against Postgres, not just SQLite | Tests run on SQLite but prod is Postgres, and the index is raw DDL. A throwaway PG 17 container is the cheap way to close that gap |
 | 2026-08-18 | Steps 2 and 4 built together | Persistence has nothing to persist without a request path; splitting them would have meant writing the controller twice |
 | 2026-08-18 | Chat UI keeps no local message state | The server is the source of truth, so a reload cannot silently disagree with what the student saw |
+| 2026-08-19 | A per-user in-flight lock, on top of the rate limiter | An open stream holds an FPM worker and the pool is 5, so a few concurrent streams take down the whole site. A per-minute limiter cannot stop that — five requests fit in one second |
+| 2026-08-19 | `throttle:ai-chat` listed last in the route middleware | The limiter keys on `$request->user()`; placed before `auth` it silently degrades to per-IP, which is exactly what students behind a shared NAT must not get |
+| 2026-08-19 | `post_max_size` / `client_max_body_size` left alone | Lowering them is a genuine hardening win with no uploads in the app, but it affects every route — a global change should not be a side effect of this feature |
 | 2026-08-19 | History is budgeted by measured tokens, not a character estimate | `strlen/4` under-counts Armenian by 36% and Python by 41%. Assistant turns carry exact `output_tokens`; only the length-capped user question is estimated, pessimistically |
 | 2026-08-19 | Trim to a floor well below the budget, not just under it | Trimming shifts the start of the cached prefix and invalidates the whole cache, so it must be rare and deep rather than frequent and shallow |
 | 2026-08-19 | Daily quota counts questions across all courses | A per-conversation count is sidestepped by opening a thread on another course |

@@ -71,7 +71,9 @@ Route::get('/courses/{course:slug}', [CourseController::class, 'show'])->name('c
 // The reply streams back as server-sent events; the conversation is derived
 // from the authenticated user plus this course, never from a client-supplied id.
 Route::post('/courses/{course:slug}/chat', [AiChatController::class, 'stream'])
-    ->middleware(['auth', 'verified', 'role:'.RbacRole::STUDENT->value])
+    // throttle runs last so the limiter can key on the authenticated user
+    // rather than the IP — students share NATs.
+    ->middleware(['auth', 'verified', 'role:'.RbacRole::STUDENT->value, 'throttle:ai-chat'])
     ->name('courses.chat.stream');
 
 require __DIR__.'/auth.php';

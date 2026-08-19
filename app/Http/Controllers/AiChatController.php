@@ -11,8 +11,10 @@ use App\Services\Ai\ChatClient;
 use App\Services\Ai\ChatResult;
 use App\Services\Ai\ConversationHistory;
 use App\Services\Ai\TutorPrompt;
+use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\StreamedEvent;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -46,6 +48,19 @@ class AiChatController extends Controller
             return $overQuota;
         }
 
+        // An open stream holds one PHP-FPM worker for its whole duration, and
+        // the pool is small (pm.max_children = 5 in dev). A handful of
+        // simultaneous streams would therefore take down the entire site, not
+        // just the tutor — and the per-minute rate limiter cannot prevent that,
+        // because five requests can arrive in the same second.
+        $lock = Cache::lock("ai-chat:in-flight:{$user->id}", (int) config('anthropic.stream_timeout') + 30);
+
+        if (! $lock->get()) {
+            return response()->json([
+                'message' => 'The tutor is still answering your last question. Please wait for it to finish.',
+            ], 429);
+        }
+
         // Race-safe against the partial unique index on (user_id, course_id)
         // where video_id is null. video_id stays null until a lesson page exists.
         $conversation = Conversation::firstOrCreate([
@@ -66,10 +81,18 @@ class AiChatController extends Controller
 
         // Built before the response is returned, so a failure assembling the
         // prompt is an ordinary 500 rather than a half-sent stream.
-        [$history, $trimmed] = ConversationHistory::fromConfig()->forConversation($conversation);
-        $system = TutorPrompt::forCourse($course, $trimmed);
+        try {
+            [$history, $trimmed] = ConversationHistory::fromConfig()->forConversation($conversation);
+            $system = TutorPrompt::forCourse($course, $trimmed);
+        } catch (Throwable $e) {
+            // Nothing is streaming yet, so the lock has to be freed here or the
+            // student is locked out until it expires.
+            $lock->release();
 
-        return response()->eventStream(function () use ($chat, $system, $history, $conversation) {
+            throw $e;
+        }
+
+        return response()->eventStream(function () use ($chat, $system, $history, $conversation, $lock) {
             $answer = '';
             $result = null;
             $message = null;
@@ -104,6 +127,10 @@ class AiChatController extends Controller
                 // closed the tab mid-reply. The tokens are billed either way, so
                 // whatever arrived is persisted rather than thrown away.
                 $message = $this->persistAnswer($conversation, $answer, $result);
+
+                // Freed here rather than left to expire, so a student can ask
+                // again the moment the previous answer finishes.
+                $this->release($lock);
             }
 
             if ($completed && $message !== null) {
@@ -161,6 +188,19 @@ class AiChatController extends Controller
             $data,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE,
         );
+    }
+
+    /**
+     * Releasing a lock we no longer hold — because it expired mid-stream on a
+     * very long generation — throws rather than returning false.
+     */
+    private function release(Lock $lock): void
+    {
+        try {
+            $lock->release();
+        } catch (Throwable $e) {
+            Log::warning('AI tutor in-flight lock already gone', ['exception' => $e->getMessage()]);
+        }
     }
 
     /**
