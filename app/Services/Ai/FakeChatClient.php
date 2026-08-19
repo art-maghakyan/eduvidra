@@ -46,6 +46,15 @@ class FakeChatClient implements ChatClient
         );
     }
 
+    /**
+     * Same rough heuristic the fake stream reports, so offline code paths get a
+     * plausible non-zero number. Never accurate — only the real driver is.
+     */
+    public function countTokens(string $system, array $messages): int
+    {
+        return (int) ceil(mb_strlen($system.json_encode($messages)) / 4);
+    }
+
     private function cannedReply(array $messages): string
     {
         $last = end($messages);

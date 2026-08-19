@@ -78,4 +78,13 @@ class AnthropicChatClient implements ChatClient
             stopReason: $stopReason,
         );
     }
+
+    public function countTokens(string $system, array $messages): int
+    {
+        return $this->client->messages->countTokens(
+            messages: $messages,
+            model: $this->model,
+            system: $system,
+        )->inputTokens;
+    }
 }

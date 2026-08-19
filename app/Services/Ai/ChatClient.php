@@ -27,4 +27,16 @@ interface ChatClient
      * @return Generator<int, string, mixed, ChatResult>
      */
     public function stream(string $system, array $messages): Generator;
+
+    /**
+     * Input tokens the given prompt would cost, without generating a reply.
+     *
+     * Anthropic's count_tokens endpoint is free and sits on a rate-limit pool
+     * separate from message creation, so prompt assembly can be measured
+     * exactly at no cost. Step 7 uses this to cap replayed history by tokens
+     * rather than by message count.
+     *
+     * @param  list<array{role: string, content: string}>  $messages
+     */
+    public function countTokens(string $system, array $messages): int;
 }

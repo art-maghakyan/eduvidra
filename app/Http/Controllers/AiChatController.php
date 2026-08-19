@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Course;
 use App\Models\Message;
 use App\Services\Ai\ChatClient;
+use App\Services\Ai\TutorPrompt;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -43,7 +44,7 @@ class AiChatController extends Controller
         $conversation->forceFill(['last_message_at' => now()])->save();
 
         try {
-            $stream = $chat->stream($this->systemPrompt($course), $this->history($conversation));
+            $stream = $chat->stream(TutorPrompt::forCourse($course), $this->history($conversation));
 
             $answer = '';
             foreach ($stream as $chunk) {
@@ -99,26 +100,5 @@ class AiChatController extends Controller
                 'content' => $message->content,
             ])
             ->all();
-    }
-
-    /**
-     * Minimal framing for now. Step 5 injects the real course metadata
-     * (description, tags, lesson titles) and the language-mirroring rule.
-     *
-     * User text is never concatenated in here — it stays in the messages array.
-     */
-    private function systemPrompt(Course $course): string
-    {
-        return <<<PROMPT
-        You are a study tutor for students on Eduvidra. The student is studying the course
-        "{$course->title}".
-
-        You can see the course's title only — you cannot see the lesson videos, their
-        transcripts, or any course material. If asked about what an instructor said in a
-        specific lesson, say plainly that you do not have the lesson content, then help
-        with the underlying topic instead. Never invent what a lesson contained.
-
-        Answer clearly and concisely, at the level of someone learning the subject.
-        PROMPT;
     }
 }
