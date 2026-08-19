@@ -48,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
                 ),
                 config('anthropic.model'),
                 config('anthropic.max_tokens'),
+                config('anthropic.cache_ttl'),
             );
         });
     }

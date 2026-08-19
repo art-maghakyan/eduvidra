@@ -9,9 +9,9 @@ context record; re-read it before starting or resuming work.
 
 | | |
 |---|---|
-| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below. Suite: 112 passed; Pint clean on 116 files. |
+| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Prompt caching** (part of Step 7, pulled forward) — one breakpoint per request; verified live at 5,594 tokens read back at 0.1x. Suite: 113 passed; Pint clean on 116 files. |
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
-| **Unblocked next** | Step 7 (cost control): daily quota, token-based history cap, 429 with a reset time. |
+| **Unblocked next** | Rest of Step 7 (cost control): daily quota, token-based history cap, 429 with a reset time. Keep the cap **above 4,096 tokens** or it makes the new prompt caching permanently inert. |
 | **Biggest find so far** | **The Anthropic PHP SDK does not stream over TLS at its default read size.** It reads the body in 8,192-byte blocks and PHP's OpenSSL stream fills that buffer before returning, so a whole reply — well under 8 KB — arrived in a single read *after* generation finished. It looked exactly like streaming from the outside and was not. Fixed in `App\Services\Ai\IncrementalStreamTransporter`; see Step 6. |
 | **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. Spent to date: **~$0.03**. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
@@ -61,12 +61,13 @@ docker inspect eduvidra-db --format '{{range $k,$v := .NetworkSettings.Networks}
 
 ### 2. Where the code is
 
-Branch **`feat/ai-chat-tutor`**, eight commits off `master`, to be merged at the end
+Branch **`feat/ai-chat-tutor`**, nine commits off `master`, to be merged at the end
 (`git log --oneline master..`):
 
 ```
-HEAD    feat(ai): stream tutor replies over server-sent events
-HEAD~1  fix(ai): make the Anthropic SDK stream over TLS
+HEAD    feat(ai): cache the replayed conversation prefix
+c67b1d8 feat(ai): stream tutor replies over server-sent events
+475e783 fix(ai): make the Anthropic SDK stream over TLS
 f97a426 feat(ai): frame the tutor prompt with course metadata
 4851f2d docs(ai): add a resume guide for picking the work back up
 b1983eb feat(ai): add the tutor chat round trip and persist both turns
@@ -117,7 +118,8 @@ enumerate. A policy becomes necessary again only when a route accepts a thread i
 | Step 5 — two behaviour checks (Armenian reply, lesson-content refusal) | $0.003753 |
 | Step 6 — diagnosing the SDK buffering (raw curl, raw Guzzle, instrumented SDK, read-size A/B ×3) | ~$0.018 |
 | Step 6 — verifying the fix, including one end-to-end run through nginx | ~$0.008 |
-| **Total** | **~$0.03** of $5 |
+| Prompt caching — token growth measurement ($0, `count_tokens`) plus two live verification runs | ~$0.019 |
+| **Total** | **~$0.05** of $5 |
 
 `ANTHROPIC_DRIVER=fake` in `.env`. Never flip it in the file — pass it per command so it
 cannot be left on by accident:
@@ -129,7 +131,7 @@ docker compose exec -e ANTHROPIC_DRIVER=real app php ...
 ### 6. Commands used in this build
 
 ```bash
-docker compose exec app php artisan test                      # 112 passing
+docker compose exec app php artisan test                      # 113 passing
 docker compose exec app php artisan test --filter=AiChatTest
 docker compose exec app php artisan test --filter=TutorPromptTest
 
@@ -283,12 +285,12 @@ by the spend limit and the fake driver instead.
    implement caching in v1, and padding the prompt to 4,096 tokens to "unlock" it would
    cost more than it saves.
 
-   **Corrected 2026-08-19:** this holds only for turn 1. Because the whole conversation is
-   replayed on every turn (see *Conversation continuity* below), the prompt crosses 4,096
-   tokens at roughly **turn 14** and keeps growing. Caching is therefore inert at launch and
-   genuinely worthwhile for any thread that sees real use — which is exactly what the
-   `cache_creation_tokens` / `cache_read_tokens` columns are there to prove. Reconsider it
-   in Step 7 alongside the history cap, not "later".
+   **Superseded 2026-08-19 — caching is now enabled.** The "inert" reasoning holds only for
+   turn 1. Because the whole conversation is replayed on every turn (see *Conversation
+   continuity*), the prompt crosses 4,096 tokens at roughly **turn 14** and keeps growing.
+   Caching is therefore inert on a young thread and worth ~90% of the input bill on an
+   established one. Implemented and verified against the real API — see *Prompt caching* under
+   Step 7.
 2. **No adaptive thinking.** Haiku 4.5 supports only the older
    `thinking: {type: "enabled", budget_tokens: N}` form. We omit `thinking` entirely, which
    suits a low-latency chat. **Do not copy `thinking: {type: "adaptive"}` from Opus/Sonnet
@@ -597,7 +599,7 @@ number is estimated and tells you how to get the real one.
 
 The estimate was high: 420 against a **4,096-token** minimum cacheable prefix on Haiku 4.5.
 That settles the caching question for turn 1 only — replayed history crosses the threshold
-around turn 14. See *Conversation continuity* under Step 7.
+around turn 14, which is why caching is enabled anyway. See *Prompt caching* under Step 7.
 
 #### Verified against the real API — $0.003753
 
@@ -827,12 +829,48 @@ probably does not, and today has no way to start fresh.
 Deciding this *before* Step 7 is cheap; after it is not, because the unique index is what
 would have to change.
 
+#### Prompt caching — built 2026-08-19
+
+Enabled, ahead of the rest of Step 7, because it is one parameter and the columns to prove
+it were already there.
+
+`AnthropicChatClient` sends one breakpoint at the end of every request, which caches
+everything before it — system prompt plus the entire replayed history. The next turn in the
+same thread re-sends that identical prefix and reads it at **0.1x** input price.
+
+Verified against the real API, two consecutive calls on a thread over the floor:
+
+| | input | cache write | cache read | output |
+|---|---|---|---|---|
+| Call 1 | 3 | **5,594** | 0 | 35 |
+| Call 2 | 3 | 27 | **5,594** | 26 |
+
+Input cost for the pair: **$0.0112 → $0.0076**, and that understates the steady state — call 1
+pays the 1.25x write premium, while a running conversation is mostly reads. `input_tokens: 3`
+is the tell: essentially the whole prompt came from cache.
+
+**Two conditions, and both fail silently.** A miss is not an error; it is zeros in
+`cache_read_tokens`:
+
+1. **The prefix must exceed 4,096 tokens on Haiku 4.5.** Confirmed against the live docs
+   2026-08-19 — the per-model table gives 4,096, not the ~1,024 general figure quoted in
+   some references. The first attempt at this verification used a 10-turn thread, measured
+   3,301 tokens, and cached nothing at all: exactly the documented silent no-op.
+2. **The next turn must arrive inside the TTL** — 5 minutes by default.
+
+So caching does nothing for a student who asks one question a day, and a great deal for one
+working through a long thread in a sitting. It is a companion to the history cap, not a
+substitute: **a cap tight enough to hold the prompt under 4,096 tokens would make caching
+permanently inert.** Choose the cap above the floor.
+
+`config('anthropic.cache_ttl')` — `null` for the API default of 5 minutes, `'1h'` (writes at
+2x instead of 1.25x, so it needs more than about one extra turn per hour to pay), or `false`
+to send no breakpoint.
+
 #### The rest of Step 7
 
-- **Prompt caching — decide it here, not later.** The original "not in v1" call assumed a
-  420-token prefix; replayed history crosses the 4,096-token minimum around turn 14, so it
-  is inert only for new threads. The `cache_creation_tokens` / `cache_read_tokens` columns
-  exist so enabling it is one line plus a number that proves it worked.
+- ~~Prompt caching~~ — **done, see above.** What is left is watching `cache_read_tokens` to
+  decide the TTL, and keeping the history cap above the 4,096-token floor.
 - **Token accounting** per message. When caching *is* active, `input_tokens` counts only
   tokens after the last cache breakpoint — total input is
   `input + cache_creation + cache_read`. Sum all three from the start.
@@ -916,7 +954,9 @@ migration) → transcripts → retrieval.
 | 2026-08-17 | Persist conversations | Enables debugging and auditing; cannot be added retroactively |
 | 2026-08-17 | Students only, 10 msg/day | Attributable requests; abuse control rather than budget control |
 | 2026-08-17 | `claude-haiku-4-5` | Cheapest at ~$0.004/turn. Accepted cost: no prompt caching, no adaptive thinking |
-| 2026-08-17 | No prompt caching in v1 | 4,096-token minimum vs our measured 420-token prefix — silently inert on turn 1. **Partly superseded 2026-08-19:** replayed history crosses 4,096 around turn 14, so caching is worth revisiting in Step 7 |
+| 2026-08-17 | ~~No prompt caching in v1~~ | **Superseded 2026-08-19.** The 4,096-token minimum was compared against the system prompt alone; the prefix that actually gets cached is system + replayed history, which crosses the floor around turn 14. Caching is now on |
+| 2026-08-19 | **Prompt caching enabled**, one breakpoint at the end of each request | Verified live: 5,594 tokens written on one turn and all 5,594 read back on the next, at 0.1x. Inert below 4,096 tokens and outside the TTL, which is expected rather than broken |
+| 2026-08-19 | Default 5-minute TTL, not 1h | 1h writes cost 2x input instead of 1.25x, so it only pays above roughly one extra turn per hour. `cache_read_tokens` will show whether that happens; switching is one env var |
 | 2026-08-17 | SSE over WebSockets | One-directional and short-lived; no extra process or port |
 | 2026-08-17 | Same model dev and prod | Avoids tuning prompts against a model you don't ship |
 | 2026-08-18 | **Rejected a Node.js SSE sidecar** | Laravel sessions are DB-backed with an encrypted cookie, so Node would need a bespoke auth bridge — plus a second deployable, test stack, CI lane and lint config. The real win (no PHP-FPM worker held per open connection) does not matter at 10 msg/day. Revisit only if concurrency becomes real |
@@ -943,8 +983,13 @@ migration) → transcripts → retrieval.
 - **Should a thread ever reset?** Undecided as of 2026-08-19 — see *Open product decision*
   under Step 7. Cheap to decide before Step 7, expensive after, because allowing a second
   thread per `(user, course)` means changing the partial unique index.
-- **Enable prompt caching in Step 7?** It is inert on turn 1 and worthwhile from roughly
-  turn 14. The replayed history is a stable prefix, which is the ideal shape for it.
+- ~~Enable prompt caching in Step 7?~~ **Done 2026-08-19** — see *Prompt caching* under
+  Step 7. What remains open is the **TTL**: the 5-minute default only helps inside a single
+  sitting. Watch `cache_read_tokens` before spending 2x on 1h writes.
+- **Does the history cap kill caching?** The two Step 7 features pull against each other: a
+  cap tight enough to hold the prompt under 4,096 tokens makes caching permanently inert.
+  Set the cap above the floor, or accept that caching only ever applies to threads the cap
+  has not yet trimmed.
 - Is 10 messages/day too tight in practice? Watch `UserAiUsage` after launch — raise it if
   genuine students hit the ceiling. The cost argument for keeping it low is weak on Haiku
   (~$0.04/user/day at the cap); it is an abuse control, not a budget one.

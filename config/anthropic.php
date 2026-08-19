@@ -64,4 +64,32 @@ return [
 
     'stream_timeout' => (int) env('ANTHROPIC_STREAM_TIMEOUT', 120),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Prompt caching
+    |--------------------------------------------------------------------------
+    |
+    | A cache breakpoint is placed at the end of each request, so the next turn
+    | in the same thread re-reads the system prompt and the whole replayed
+    | history at 0.1x input price instead of 1x.
+    |
+    | Two conditions have to hold before a single token is cached, and both are
+    | easy to miss because a miss is silent — no error, just zeros in
+    | cache_read_tokens:
+    |
+    |   1. The prefix must exceed 4,096 tokens on Haiku 4.5. Our system prompt is
+    |      420, so this is reached by replayed history alone, at roughly turn 14.
+    |   2. The next turn must arrive inside the TTL.
+    |
+    | TTL: null uses the API default of 5 minutes (writes cost 1.25x input).
+    | '1h' costs 2x on write, so it pays only if a thread averages more than
+    | about one extra turn per hour. Start at the default and let the
+    | cache_read_tokens column decide — that is what it is there for.
+    |
+    | Set to false to disable caching entirely.
+    |
+    */
+
+    'cache_ttl' => env('ANTHROPIC_CACHE_TTL'),
+
 ];

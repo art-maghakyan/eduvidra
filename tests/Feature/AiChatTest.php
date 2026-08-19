@@ -320,6 +320,26 @@ class AiChatTest extends TestCase
         );
     }
 
+    public function test_cache_token_accounting_is_persisted(): void
+    {
+        $course = $this->makeCourse();
+
+        $caching = new CachingChatClient;
+        $caching->delayMicroseconds = 0;
+        $this->app->instance(ChatClient::class, $caching);
+
+        $this->ask($this->student(), $course, 'What is a for loop?');
+
+        $assistant = Message::where('role', 'assistant')->sole();
+
+        // Total input is input + cache_creation + cache_read, never input alone.
+        // If this mapping breaks, cost reporting is silently wrong rather than
+        // failing, which is why it is asserted column by column.
+        $this->assertSame(3, $assistant->input_tokens);
+        $this->assertSame(5594, $assistant->cache_creation_tokens);
+        $this->assertSame(1200, $assistant->cache_read_tokens);
+    }
+
     public function test_the_tutor_panel_is_hidden_from_guests(): void
     {
         $course = $this->makeCourse();
@@ -347,6 +367,27 @@ class MultilineChatClient extends FakeChatClient
         }
 
         return new ChatResult(model: 'fake-model', outputTokens: 42, stopReason: 'end_turn');
+    }
+}
+
+/**
+ * Reports the usage shape a cached turn actually returns: almost nothing billed
+ * as fresh input, the bulk written to or read from cache.
+ */
+class CachingChatClient extends FakeChatClient
+{
+    public function stream(string $system, array $messages): \Generator
+    {
+        yield 'A for loop repeats a known number of times.';
+
+        return new ChatResult(
+            model: 'fake-model',
+            inputTokens: 3,
+            outputTokens: 35,
+            cacheCreationTokens: 5594,
+            cacheReadTokens: 1200,
+            stopReason: 'end_turn',
+        );
     }
 }
 

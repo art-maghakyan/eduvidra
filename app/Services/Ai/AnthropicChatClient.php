@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use Anthropic\Client;
+use Anthropic\Messages\CacheControlEphemeral;
 use Anthropic\Messages\RawContentBlockDeltaEvent;
 use Anthropic\Messages\RawMessageDeltaEvent;
 use Anthropic\Messages\RawMessageStartEvent;
@@ -21,6 +22,11 @@ class AnthropicChatClient implements ChatClient
         private readonly Client $client,
         private readonly string $model,
         private readonly int $maxTokens,
+        /**
+         * Cache TTL: null for the API default of 5 minutes, '1h' for an hour,
+         * or false to send no breakpoint at all.
+         */
+        private readonly string|false|null $cacheTtl = null,
     ) {}
 
     public function stream(string $system, array $messages): Generator
@@ -30,6 +36,7 @@ class AnthropicChatClient implements ChatClient
             messages: $messages,
             model: $this->model,
             system: $system,
+            cacheControl: $this->cacheControl(),
         );
 
         $model = $this->model;
@@ -77,6 +84,23 @@ class AnthropicChatClient implements ChatClient
             cacheReadTokens: $cacheReadTokens,
             stopReason: $stopReason,
         );
+    }
+
+    /**
+     * One breakpoint at the end of the request, which caches everything before
+     * it: the system prompt plus the entire replayed history. The next turn in
+     * the same thread re-sends that identical prefix and reads it at 0.1x.
+     *
+     * Below 4,096 tokens on Haiku 4.5 this is **silently ignored** — no error,
+     * just zeros in usage. That is expected on a young thread, not a bug.
+     */
+    private function cacheControl(): ?CacheControlEphemeral
+    {
+        if ($this->cacheTtl === false) {
+            return null;
+        }
+
+        return CacheControlEphemeral::with(ttl: $this->cacheTtl);
     }
 
     public function countTokens(string $system, array $messages): int
