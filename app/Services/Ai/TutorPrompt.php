@@ -27,9 +27,22 @@ class TutorPrompt
     /** Long descriptions are trimmed for the same reason. */
     public const MAX_DESCRIPTION_CHARS = 1500;
 
-    public static function forCourse(Course $course): string
+    /**
+     * Told to the model when older turns have been dropped from the replay.
+     *
+     * Without it the conversation does not look truncated — it looks like it
+     * began where the surviving history begins, which is how a trimmed thread
+     * gets subtly worse instead of visibly shorter. Step 10 replaces the
+     * apology with an actual summary of what was dropped.
+     */
+    public const TRIMMED_NOTICE = 'Note: this conversation is long, so earlier turns have '
+        .'been dropped and you can no longer see them. If the student refers back to '
+        .'something you cannot find above, say so and ask them to restate it.';
+
+    public static function forCourse(Course $course, bool $historyTrimmed = false): string
     {
         $context = self::courseContext($course);
+        $trimmed = $historyTrimmed ? "\n\n".self::TRIMMED_NOTICE : '';
 
         return <<<PROMPT
         You are the study tutor on Eduvidra, an online course platform. You are helping one
@@ -55,7 +68,7 @@ class TutorPrompt
         Answer clearly and concisely, pitched at someone currently learning this subject.
         Prefer a short worked example over a long explanation. Keep to topics related to
         this course; if the student asks about something unrelated, say so briefly and
-        steer back.
+        steer back.{$trimmed}
         PROMPT;
     }
 

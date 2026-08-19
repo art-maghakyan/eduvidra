@@ -6,9 +6,12 @@ use App\Http\Requests\SendChatMessageRequest;
 use App\Models\Conversation;
 use App\Models\Course;
 use App\Models\Message;
+use App\Models\User;
 use App\Services\Ai\ChatClient;
 use App\Services\Ai\ChatResult;
+use App\Services\Ai\ConversationHistory;
 use App\Services\Ai\TutorPrompt;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\StreamedEvent;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -27,7 +30,7 @@ class AiChatController extends Controller
      * in the URL — no conversation id is accepted from the client, so there is
      * no id to enumerate and no thread of anyone else's to reach.
      */
-    public function stream(SendChatMessageRequest $request, Course $course, ChatClient $chat): StreamedResponse
+    public function stream(SendChatMessageRequest $request, Course $course, ChatClient $chat): StreamedResponse|JsonResponse
     {
         // FPM runs on PHP's built-in 30s default (no php.ini is loaded in the
         // image), which is shorter than a long generation. Stays under nginx's
@@ -35,6 +38,13 @@ class AiChatController extends Controller
         set_time_limit((int) config('anthropic.stream_timeout'));
 
         $user = $request->user();
+
+        // Checked before anything is persisted and before a single token is
+        // spent. Returned as JSON rather than an SSE error event because no
+        // stream is opened — there is nothing to stream into.
+        if ($overQuota = $this->quotaExceeded($user)) {
+            return $overQuota;
+        }
 
         // Race-safe against the partial unique index on (user_id, course_id)
         // where video_id is null. video_id stays null until a lesson page exists.
@@ -56,8 +66,8 @@ class AiChatController extends Controller
 
         // Built before the response is returned, so a failure assembling the
         // prompt is an ordinary 500 rather than a half-sent stream.
-        $system = TutorPrompt::forCourse($course);
-        $history = $this->history($conversation);
+        [$history, $trimmed] = ConversationHistory::fromConfig()->forConversation($conversation);
+        $system = TutorPrompt::forCourse($course, $trimmed);
 
         return response()->eventStream(function () use ($chat, $system, $history, $conversation) {
             $answer = '';
@@ -154,22 +164,36 @@ class AiChatController extends Controller
     }
 
     /**
-     * Replayed conversation so far, oldest first.
+     * A 429 when the student has used up today's questions, or null.
      *
-     * Bounded in practice by the daily message cap. Step 7 adds a token-based
-     * ceiling and summarises the dropped prefix.
-     *
-     * @return list<array{role: string, content: string}>
+     * Counts questions rather than conversations, across every course, so the
+     * cap cannot be sidestepped by opening a thread on another course.
      */
-    private function history(Conversation $conversation): array
+    private function quotaExceeded(User $user): ?JsonResponse
     {
-        return $conversation->messages()
-            ->orderBy('id')
-            ->get(['role', 'content'])
-            ->map(fn (Message $message) => [
-                'role' => $message->role,
-                'content' => $message->content,
-            ])
-            ->all();
+        $limit = (int) config('anthropic.daily_message_limit');
+
+        $asked = Message::query()
+            ->where('role', 'user')
+            ->whereIn('conversation_id', Conversation::query()
+                ->where('user_id', $user->id)
+                ->select('id'))
+            ->where('created_at', '>=', now()->startOfDay())
+            ->count();
+
+        if ($asked < $limit) {
+            return null;
+        }
+
+        $resetsAt = now()->addDay()->startOfDay();
+        $retryAfter = (int) now()->diffInSeconds($resetsAt);
+
+        return response()->json([
+            'message' => sprintf(
+                'You have used all %d tutor questions for today. You can ask again after midnight.',
+                $limit,
+            ),
+            'retry_after' => $retryAfter,
+        ], 429)->header('Retry-After', (string) $retryAfter);
     }
 }

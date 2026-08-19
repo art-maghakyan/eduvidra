@@ -92,4 +92,43 @@ return [
 
     'cache_ttl' => env('ANTHROPIC_CACHE_TTL'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Daily quota
+    |--------------------------------------------------------------------------
+    |
+    | Questions one user may ask per calendar day, across every course. This is
+    | an abuse control, not a budget one — at ~$0.004/turn the cap costs about
+    | $0.04/user/day, which is not what would hurt. One scripted user hammering
+    | the endpoint is.
+    |
+    */
+
+    'daily_message_limit' => (int) env('ANTHROPIC_DAILY_MESSAGE_LIMIT', 10),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Replayed history budget
+    |--------------------------------------------------------------------------
+    |
+    | The whole thread is replayed on every turn, so an old thread costs more
+    | per question than a new one — about +282 input tokens per turn. These two
+    | numbers bound that.
+    |
+    | Both sit ABOVE Haiku 4.5's 4,096-token cache floor on purpose. A budget
+    | that held the prompt under 4,096 would make prompt caching permanently
+    | inert, which costs far more than the trimming saves.
+    |
+    | The gap between them matters just as much as their values. Trimming drops
+    | the OLDEST turns, which shifts the start of the cached prefix and
+    | invalidates the entire cache. Trimming all the way down to the floor
+    | instead of just under the budget means that happens roughly every 20
+    | turns rather than on every single turn once the budget is reached.
+    |
+    */
+
+    'history_token_budget' => (int) env('ANTHROPIC_HISTORY_TOKEN_BUDGET', 12000),
+
+    'history_token_floor' => (int) env('ANTHROPIC_HISTORY_TOKEN_FLOOR', 6000),
+
 ];

@@ -1,6 +1,6 @@
 # AI Chat Tutor (Anthropic API)
 
-**Status:** in progress — Steps 0-6 done. Step 7 (cost control) is next. This document is the
+**Status:** in progress — Steps 0-7 done. Step 8 (security) is next. This document is the
 context record; re-read it before starting or resuming work.
 
 **Last updated:** 2026-08-19
@@ -9,9 +9,9 @@ context record; re-read it before starting or resuming work.
 
 | | |
 |---|---|
-| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Prompt caching** (part of Step 7, pulled forward) — one breakpoint per request; verified live at 5,594 tokens read back at 0.1x. Suite: 113 passed; Pint clean on 116 files. |
+| **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Step 7** — prompt caching (one breakpoint per request, verified live at 5,594 tokens read back at 0.1x), daily quota with a 429, and a token-budgeted history replay. Suite: 121 passed; Pint clean on 118 files. |
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
-| **Unblocked next** | Rest of Step 7 (cost control): daily quota, token-based history cap, 429 with a reset time. Keep the cap **above 4,096 tokens** or it makes the new prompt caching permanently inert. |
+| **Unblocked next** | Step 8 (security): an `ai-chat` rate limiter keyed by user id. Note the repo still has **no** `RateLimiter::for` definitions at all, and the conversation-id policy is moot — see Step 6. |
 | **Biggest find so far** | **The Anthropic PHP SDK does not stream over TLS at its default read size.** It reads the body in 8,192-byte blocks and PHP's OpenSSL stream fills that buffer before returning, so a whole reply — well under 8 KB — arrived in a single read *after* generation finished. It looked exactly like streaming from the outside and was not. Fixed in `App\Services\Ai\IncrementalStreamTransporter`; see Step 6. |
 | **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. Spent to date: **~$0.03**. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
@@ -19,7 +19,7 @@ context record; re-read it before starting or resuming work.
 
 ## Resuming work — start here
 
-Last session ended 2026-08-19 with Steps 0-6 done. Next action is **Step 7**.
+Last session ended 2026-08-19 with Steps 0-7 done. Next action is **Step 8**.
 
 ### 1. Bring the environment up
 
@@ -61,11 +61,12 @@ docker inspect eduvidra-db --format '{{range $k,$v := .NetworkSettings.Networks}
 
 ### 2. Where the code is
 
-Branch **`feat/ai-chat-tutor`**, nine commits off `master`, to be merged at the end
+Branch **`feat/ai-chat-tutor`**, ten commits off `master`, to be merged at the end
 (`git log --oneline master..`):
 
 ```
-HEAD    feat(ai): cache the replayed conversation prefix
+HEAD    feat(ai): add the daily quota and the replayed-history budget
+6ff682b feat(ai): cache the replayed conversation prefix
 c67b1d8 feat(ai): stream tutor replies over server-sent events
 475e783 fix(ai): make the Anthropic SDK stream over TLS
 f97a426 feat(ai): frame the tutor prompt with course metadata
@@ -79,25 +80,19 @@ f75fed2 feat(ai): add Anthropic driver seam behind a fake/real switch
 `resources/views/vendor/mail/text/table.blade.php` is modified and **deliberately
 unstaged** — it predates this work and is unrelated.
 
-### 3. Next action — Step 7, cost control (<$0.05)
+### 3. Next action — Step 8, security ($0)
 
-Everything Step 7 needs is already in place: `ChatClient::countTokens()` measures a prompt
-for free, and every assistant turn already stores `input/output/cache_creation/cache_read`.
-
-- **First, settle the thread-reset question** (see *Open product decision* under Step 7) —
-  it is the only part that could require a migration.
-- `daily_message_limit` joins `config/anthropic.php` (deliberately held back until now).
-- The check runs **before** the API call and returns a 429 naming the reset time.
-- History is capped by *token count*, not message count, using `countTokens()`. Threads
-  grow ~282 input tokens per turn, so this fires on any thread more than a few days old.
-- Reconsider prompt caching in the same pass: it is inert on turn 1 but not past turn ~14.
-- The streaming endpoint returns its 429 as JSON, not as an SSE `error` event — the
-  request is rejected before a stream is opened, so there is nothing to stream into. The
-  Vue panel already surfaces a non-200 through its `!response.ok` branch.
-
-Then Step 8 (security). Note that Step 8's `AiConversationPolicy` is **no longer needed for
-this route**: the streaming endpoint takes no conversation id, so there is nothing to
-enumerate. A policy becomes necessary again only when a route accepts a thread id.
+- **Rate limiting.** This repo still has **no** `RateLimiter::for` definitions anywhere. Add
+  an `ai-chat` limiter keyed by **user id, not IP** — students share NATs — plus a burst
+  limiter. This is separate from Step 7's daily quota: that is a business cap measured in
+  questions per day, this is an abuse cap measured in requests per minute.
+- **Prompt injection** is already handled by construction and needs no new work: the system
+  prompt and user text are separate parameters, the course block is framed as reference
+  data, and the endpoint has no tools, no DB access and no file access, so the worst case
+  for a successful injection is a rude answer. There is a test for the split.
+- **Authorisation** needs no policy — the route takes no conversation id. See Step 6.
+- What is genuinely left is the limiter and a check that an oversized body is rejected
+  before it reaches PHP's memory, not just by the Form Request.
 
 ### 4. Open decisions waiting on you
 
@@ -131,7 +126,7 @@ docker compose exec -e ANTHROPIC_DRIVER=real app php ...
 ### 6. Commands used in this build
 
 ```bash
-docker compose exec app php artisan test                      # 113 passing
+docker compose exec app php artisan test                      # 121 passing
 docker compose exec app php artisan test --filter=AiChatTest
 docker compose exec app php artisan test --filter=TutorPromptTest
 
@@ -146,6 +141,9 @@ curl -sS -N -b jar.txt -X POST http://localhost:8000/courses/python-for-beginner
 
 # Effective FPM ini values (CLI php -i reports different ones and will mislead):
 #   drop a one-line phpinfo script in public/, curl it, delete it.
+
+# Daily quota, end to end (fake driver, $0) — loop the POST above until it 429s.
+docker compose exec app php artisan test --filter=AiChatBudgetTest
 docker compose exec app vendor/bin/pint --test                # CI runs this
 docker compose exec vite npm run build                        # validates the Vue SFC
 
@@ -351,8 +349,8 @@ before the previous one's verification passes.
 | 4 | Persistence wired in | History survives reload | $0 | **Done** 2026-08-18 |
 | 5 | Course context injection | `count_tokens` prints prompt size; non-English question gets same-language reply | $0 | **Done** 2026-08-19 ($0.0038 for the behaviour checks) |
 | 6 | Streaming via SSE | Text streams progressively in Docker | ~$0.05 | **Done** 2026-08-19 (~$0.026 — mostly diagnosing the SDK) |
-| 7 | Cost control | 11th message/day returns 429 | <$0.05 | **Ready — next** |
-| 8 | Security | Rate limit trips; cross-user access 403s | $0 | Ready (the conversation-id policy is moot — see Step 6) |
+| 7 | Cost control | 11th message/day returns 429 | <$0.05 | **Done** 2026-08-19 ($0 — `count_tokens` and the fake driver covered all of it) |
+| 8 | Security | Rate limit trips; cross-user access 403s | $0 | **Ready — next** (the conversation-id policy is moot — see Step 6) |
 | 9 | Tests | `artisan test` green, zero network calls | $0 | Partly done (see Steps 1 and 5) |
 | 10 | Async + observability | Titles via Horizon; CloudWatch metrics | small | Ready after Step 9 |
 
@@ -867,21 +865,70 @@ permanently inert.** Choose the cap above the floor.
 2x instead of 1.25x, so it needs more than about one extra turn per hour to pay), or `false`
 to send no breakpoint.
 
-#### The rest of Step 7
+#### Daily quota — built 2026-08-19
 
-- ~~Prompt caching~~ — **done, see above.** What is left is watching `cache_read_tokens` to
-  decide the TTL, and keeping the history cap above the 4,096-token floor.
-- **Token accounting** per message. When caching *is* active, `input_tokens` counts only
-  tokens after the last cache breakpoint — total input is
-  `input + cache_creation + cache_read`. Sum all three from the start.
-- **Daily quota** from `config('anthropic.daily_message_limit')`, checked *before* the
-  request; over budget returns a friendly 429 naming the reset time rather than calling the
-  API.
-- **Context growth**: cap replayed history by *token count*, not message count; summarise
-  the dropped prefix. This document previously called it a rare edge case against a 200K
-  window — measurement says otherwise. It will fire on every thread that lives more than a
-  few days, and the cost, not the window, is why (see *Conversation continuity* above).
-- **Bound `max_tokens`** per reply (~1,024).
+`config('anthropic.daily_message_limit')`, default **10**, checked in the controller before
+anything is persisted and before a token is spent. Over the cap returns **429** with a
+friendly message, a `retry_after` field and a `Retry-After` header.
+
+- It counts **questions, across every course** — a per-conversation count could be
+  sidestepped by opening a thread on another course. There is a test for exactly that.
+- It is returned as **JSON, not an SSE `error` event**: the request is refused before a
+  stream is opened, so there is nothing to stream into. The Vue panel already surfaces a
+  non-200 through its `!response.ok` branch and puts the student's text back in the box.
+- Verified through nginx: with 3 questions already used, the 8th request returned
+  `429 {"message":"You have used all 10 tutor questions for today…","retry_after":34898}`.
+
+#### Replayed-history budget — built 2026-08-19
+
+`App\Services\Ai\ConversationHistory`. Two numbers, both **above** the 4,096-token cache
+floor on purpose:
+
+| | Default | Meaning |
+|---|---|---|
+| `history_token_budget` | 12,000 | Over this, the thread gets trimmed |
+| `history_token_floor` | 6,000 | Trimming cuts down to here, not merely under the budget |
+
+**Why two numbers rather than one.** Trimming drops the *oldest* turns, which moves the
+start of the cached prefix and invalidates the **entire** prompt cache. Cutting all the way
+to the floor means that happens about every 20 turns instead of on every single turn once
+the budget is reached. The gap between the two numbers is the feature.
+
+**Measuring, not estimating — the part worth not re-deriving.** The obvious implementation
+is `strlen / 4`. Checked against `count_tokens` on real samples, that is:
+
+| Sample | `strlen/4` vs real |
+|---|---|
+| English prose | 1.15x (over — safe) |
+| Armenian | **0.64x** |
+| Python code | **0.59x** |
+
+A cost control that under-counts by 40% on the two things this tutor emits constantly is not
+a cost control. So assistant turns — the bulk of any thread — use their **exact stored
+`output_tokens`**, and only user questions fall back to an estimate, at a deliberately
+pessimistic 2.3 bytes/token. Questions are capped at 2,000 characters by the Form Request,
+so that estimate's error is bounded. No network call is made on this path.
+
+`output_tokens` is `0` on a turn persisted as `incomplete`, so a zero with content present
+means *unknown*, not *empty*, and falls back to the estimate.
+
+**Two traps found while building it:**
+
+1. Trimming can strand an **assistant turn at the front**, which the API rejects — the
+   messages array must open with a user turn. The guard is three lines; the test for it only
+   has teeth with long questions in the fixture, because short ones never make the cut land
+   mid-turn. Confirmed by deleting the guard and watching exactly that one test fail.
+2. A silently shorter conversation gets subtly worse rather than erroring, so
+   `TutorPrompt::forCourse($course, $trimmed)` appends `TRIMMED_NOTICE` telling the model
+   history was dropped and to ask the student to restate anything it cannot find. **Step 10
+   replaces that apology with an actual summary** of the dropped prefix — the queued
+   summarisation job.
+
+#### Already in place
+
+- **Token accounting** per message — Step 3's columns, populated since Step 2. Total input
+  is `input + cache_creation + cache_read`; never `input_tokens` alone once caching is on.
+- **`max_tokens`** bounded at 1,024 by `config('anthropic.max_tokens')` since Step 1.
 
 ### Step 8 — Security
 
@@ -966,6 +1013,11 @@ migration) → transcripts → retrieval.
 | 2026-08-18 | Schema changes are verified against Postgres, not just SQLite | Tests run on SQLite but prod is Postgres, and the index is raw DDL. A throwaway PG 17 container is the cheap way to close that gap |
 | 2026-08-18 | Steps 2 and 4 built together | Persistence has nothing to persist without a request path; splitting them would have meant writing the controller twice |
 | 2026-08-18 | Chat UI keeps no local message state | The server is the source of truth, so a reload cannot silently disagree with what the student saw |
+| 2026-08-19 | History is budgeted by measured tokens, not a character estimate | `strlen/4` under-counts Armenian by 36% and Python by 41%. Assistant turns carry exact `output_tokens`; only the length-capped user question is estimated, pessimistically |
+| 2026-08-19 | Trim to a floor well below the budget, not just under it | Trimming shifts the start of the cached prefix and invalidates the whole cache, so it must be rare and deep rather than frequent and shallow |
+| 2026-08-19 | Daily quota counts questions across all courses | A per-conversation count is sidestepped by opening a thread on another course |
+| 2026-08-19 | Quota returns JSON 429, not an SSE error event | The request is refused before a stream is opened, so there is nothing to stream into |
+| 2026-08-19 | Built Step 7 on the eternal-thread default, reset question still open | Nothing in the cap or quota forecloses adding a reset later; only the partial unique index would need changing, and that is unchanged |
 | 2026-08-19 | Conversation context is permanent and fully replayed — confirmed, not changed | One thread per `(user, course)` with no expiry, and every turn replays the whole history. Recorded because nothing in the schema signals it and it drives Step 7's cost work |
 | 2026-08-19 | Thread-reset behaviour left **undecided** | Whether a stale thread should start fresh is a product call, and the partial unique index makes it a migration — so it is worth settling before Step 7 rather than assuming |
 | 2026-08-19 | **Cap the SDK's stream reads at 256 bytes** | The SDK's 8 KB reads block on a TLS socket until the buffer fills, which for a sub-8 KB reply means until generation ends. Without this the feature is not streaming at all, however correct the SSE plumbing is |
