@@ -88,6 +88,43 @@ phpunit:
   script:
     - php artisan test
 
+# Second test run against Postgres 17, the engine production actually uses.
+# The default `phpunit` job runs in-memory SQLite, which is fast but cannot
+# validate the raw DDL in the conversations migration (two PARTIAL unique
+# indexes). A regression there passes on SQLite and ships broken.
+#
+# Uses phpunit.pgsql.xml because phpunit.xml pins DB_CONNECTION with
+# force="true", which overrides real environment variables -- so job
+# `variables:` alone cannot redirect the connection.
+#
+# No CI image rebuild needed: docker/ci/Dockerfile already installs pdo_pgsql.
+phpunit:pgsql:
+  stage: test
+  image:
+    name: $CI_PHP_IMAGE
+    pull_policy: always
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: eduvidra_test
+    POSTGRES_USER: eduvidra
+    POSTGRES_PASSWORD: eduvidra
+    # Consumed by config/database.php via env(); see phpunit.pgsql.xml.
+    DB_HOST: postgres
+    DB_PORT: "5432"
+    DB_DATABASE: eduvidra_test
+    DB_USERNAME: eduvidra
+    DB_PASSWORD: eduvidra
+  cache:
+    - <<: *composer-cache
+  before_script:
+    - composer install --no-progress --prefer-dist
+    - cp .env.example .env
+    - php artisan key:generate
+  script:
+    - php artisan test -c phpunit.pgsql.xml
+
 # ---------- DEPLOY ----------
 deploy:
   stage: deploy

@@ -4,7 +4,7 @@
 the open decisions below. This document is the
 context record; re-read it before starting or resuming work.
 
-**Last updated:** 2026-08-19
+**Last updated:** 2026-08-20
 
 ## Current state (2026-08-19)
 
@@ -12,7 +12,7 @@ context record; re-read it before starting or resuming work.
 |---|---|
 | **Done** | **Step 1** — config, SDK, driver seam. Fake driver streamed 63 chunks and returned a `ChatResult`; `driver=real` resolves `AnthropicChatClient` holding a real `Anthropic\Client`.<br>**Step 3** — `conversations` + `messages` schema, models, 7 feature tests. Verified on SQLite *and* a throwaway Postgres 17, then against the real dev Postgres 17.9.<br>**Steps 2 + 4** — chat route, controller, Form Request, Vue panel, persistence, 9 feature tests.<br>**Step 5** — `TutorPrompt`, `ChatClient::countTokens()`, `dev:ai-prompt-size`, 8 more tests. Prompt measured at **420 input tokens** exactly; language mirroring and the lesson-content refusal both confirmed against the real API.<br>**Step 6** — SSE streaming end to end: route, controller, Vue reader, nginx and PHP timeouts, and the SDK read-size fix below.<br>**Step 7** — prompt caching (one breakpoint per request, verified live at 5,594 tokens read back at 0.1x), daily quota with a 429, and a token-budgeted history replay.<br>**Step 8** — the repo's first named rate limiter, plus a per-user in-flight lock that stops a few open streams exhausting the FPM pool.<br>**Step 10** — Horizon `ai` queue, queued title generation and history summarisation, and a daily CloudWatch metrics command. Suite: 137 passed; Pint clean on 125 files. |
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
-| **Unblocked next** | Merge to `master`. Before that: settle the open decisions below — the thread-reset question is the only one that would need a migration, and `pm.max_children = 5` is the one that would bite in production first. |
+| **Unblocked next** | Merge to `master`. **Decision 2 (Postgres in CI) is closed** as of 2026-08-20. Still open before merge: the four blocking production items in §3, the thread-reset question — the only one that would need a migration — and `pm.max_children = 5`, the one that would bite in production first. |
 | **Biggest find so far** | **The Anthropic PHP SDK does not stream over TLS at its default read size.** It reads the body in 8,192-byte blocks and PHP's OpenSSL stream fills that buffer before returning, so a whole reply — well under 8 KB — arrived in a single read *after* generation finished. It looked exactly like streaming from the outside and was not. Fixed in `App\Services\Ai\IncrementalStreamTransporter`; see Step 6. |
 | **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. Spent to date: **~$0.03**. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
@@ -20,9 +20,9 @@ context record; re-read it before starting or resuming work.
 
 ## Resuming work — start here
 
-Last session ended 2026-08-19 with **all ten steps done and committed** — twelve commits on
-`feat/ai-chat-tutor`, 137 tests passing, ~$0.06 of the $5 budget spent. No code work is
-outstanding.
+Last session ended 2026-08-20 having closed decision 2: **Postgres now runs in CI**, so the
+raw DDL in the conversations migration can no longer regress unnoticed. 137 tests passing on
+both SQLite and Postgres 17.9, ~$0.06 of the $5 budget spent.
 
 **Next action: work through §3, *Before merge*.** Start with the four blocking items; the
 second one (`ANTHROPIC_DRIVER=real` in production) is the one that silently ships a fake
@@ -108,6 +108,7 @@ unstaged** — it predates this work and is unrelated.
 | `app/Console/Commands/AiPromptSize.php` | `dev:ai-prompt-size` — prompt size for free |
 | `resources/js/Pages/Courses/Show.vue` | The panel: fetch + SSE reader, local state only for the turn in flight |
 | `tests/Feature/AiChat*Test.php`, `TutorPromptTest.php`, `IncrementalStreamTest.php` | 5 files, all offline |
+| `phpunit.pgsql.xml` | Postgres variant of `phpunit.xml`, used only by the `phpunit:pgsql` CI job. **Keep the two in sync** |
 
 Three things in here are counter-intuitive enough that changing them without reading first
 will break something quietly: the **256-byte read cap** (streaming), the **JSON-encoded SSE
@@ -142,13 +143,19 @@ that must be true before `feat/ai-chat-tutor` goes to `master`.
 
 #### Worth deciding before merge, not after
 
-- **Decision 2 (Postgres in CI)** is the one with teeth. CI is SQLite-only, and this branch
-  introduced the repo's only raw DDL — the two partial unique indexes in the conversations
-  migration. A regression there ships green. ~10 lines in `.gitlab-ci.yml`.
-- **Decision 6 (`pm.max_children = 5`)** is the one most likely to bite first in production.
-  Each open stream holds a worker for the whole generation — several seconds. The in-flight
-  lock bounds one student to one worker; it does not stop five students filling the pool and
-  taking the whole site down.
+- ~~**Decision 2 (Postgres in CI)**~~ — **done 2026-08-20.** See *Postgres in CI* below.
+- **Decision 6 (`pm.max_children = 5`)** is now the one most likely to bite first in
+  production. Each open stream holds a worker for the whole generation — several seconds. The
+  in-flight lock bounds one student to one worker; it does not stop five students filling the
+  pool and taking the whole site down.
+
+  **Where the 5 comes from:** nothing in this repo sets it. It is the stock default in the
+  `php:8.4-fpm` base image (`Dockerfile:51`), read out of the built image at
+  `/usr/local/etc/php-fpm.d/www.conf` — `pm = dynamic`, `pm.max_children = 5`,
+  `pm.start_servers = 2`, `pm.min_spare_servers = 1`, `pm.max_spare_servers = 3`. Raising it
+  means adding a pool config to `docker/php/` next to `opcache.ini` and copying it in the
+  Dockerfile. On a `t3.micro` the real ceiling is RAM, not the number, so measure per-worker
+  memory before picking a value.
 - **The thread-reset question** (under *Open product decision*, Step 7) is the only
   outstanding item that would still need a **migration**, because a second thread per
   `(user, course)` means changing the partial unique index. Everything else can be changed
@@ -163,8 +170,9 @@ that must be true before `feat/ai-chat-tutor` goes to `master`.
   `sse-check-password`, verified, `two_factor_required = false`), created for HTTP-level
   testing, plus its conversations and probe messages. Harmless, dev-only, never seeded —
   delete it if you want a clean local dataset.
-- CI runs `vendor/bin/pint --test` and `php artisan test`. Both were green at the last
-  commit: **137 passed, Pint clean on 125 files.**
+- CI runs `vendor/bin/pint --test` and `php artisan test`, and now also `php artisan test -c
+  phpunit.pgsql.xml` against Postgres 17. All three were green at the last commit:
+  **137 passed on both engines, Pint clean on 125 files.**
 
 #### First thing to watch after deploying
 
@@ -178,11 +186,11 @@ balance is the other.
 | | Decision | Why it is not already done |
 |---|---|---|
 | 1 | Make `User` implement `MustVerifyEmail` | Fixes the inert `verified` middleware app-wide, but immediately starts gating `/dashboard` and the profile routes and mailing existing unverified users. A product decision, not a side effect of this feature |
-| 2 | Add Postgres to CI | CI is SQLite-only; this branch introduced the repo's only raw DDL (`DB::statement` in the conversations migration). A regression there would ship green. ~10 lines in `.gitlab-ci.yml` |
+| 2 | ~~Add Postgres to CI~~ | **Done 2026-08-20** — `phpunit:pgsql` job + `phpunit.pgsql.xml`. See *Postgres in CI* |
 | 3 | Permanently free port 5432 | `sudo systemctl disable --now postgresql`, or republish the container as `5435:5432` (5433 and 5434 are taken by clusters 12 and 14) |
 | 4 | `composer audit` — 30 advisories across 10 packages | Pre-existing, unrelated to this feature |
 | 5 | Lower `post_max_size` (8M) and `client_max_body_size` (20m) | The app has no file uploads at all, so both are far larger than anything legitimate needs — but the change affects every route, not just the tutor |
-| 6 | Raise `pm.max_children` above 5 | Each open tutor stream holds one worker. The in-flight lock bounds one student to one worker; it does not stop five students from filling the pool |
+| 6 | Raise `pm.max_children` above 5 | Each open tutor stream holds one worker. The in-flight lock bounds one student to one worker; it does not stop five students from filling the pool. The 5 is the `php:8.4-fpm` image default, not a choice this repo made — see §3 |
 
 ### 5. Spend so far
 
@@ -269,6 +277,13 @@ docker run -d --name pgtest --network "$NET" \
   -e POSTGRES_DB=pgtest -e POSTGRES_USER=pgtest -e POSTGRES_PASSWORD=pgtest postgres:17-alpine
 docker compose exec -e DB_HOST=pgtest -e DB_DATABASE=pgtest \
   -e DB_USERNAME=pgtest -e DB_PASSWORD=pgtest app php artisan migrate --force
+
+# The WHOLE suite against that same throwaway — what the phpunit:pgsql CI job runs.
+# Reproduce this locally before touching .gitlab-ci.yml or the migrations.
+docker compose exec -e DB_HOST=pgtest -e DB_PORT=5432 -e DB_DATABASE=pgtest \
+  -e DB_USERNAME=pgtest -e DB_PASSWORD=pgtest \
+  app php artisan test -c phpunit.pgsql.xml
+
 docker rm -f pgtest
 ```
 
@@ -1223,6 +1238,42 @@ has no single response time in the access log, so p95 latency has nowhere else t
 **`CacheReadTokens` is the number to watch first** — it decides whether the cache TTL should
 move from 5 minutes to 1 hour, which is the one open tuning question Step 7 left behind.
 
+## Postgres in CI — built 2026-08-20
+
+Decision 2, closed. The default `phpunit` job runs in-memory SQLite, which is fast but cannot
+validate the raw DDL this branch introduced — the two partial unique indexes in the
+conversations migration. A regression there passes on SQLite and ships green.
+
+`phpunit:pgsql` in `.gitlab-ci.yml` runs the whole suite a second time against
+`postgres:17-alpine`, in the same `test` stage, so `deploy` waits for both.
+
+**Two things the "~10 lines in `.gitlab-ci.yml`" estimate missed.**
+
+1. **`phpunit.xml` pins the connection with `force="true"`**, which overrides real
+   environment variables — so job `variables:` alone cannot redirect it. Hence
+   `phpunit.pgsql.xml`: a copy with `DB_CONNECTION` forced to `pgsql` and the `DB_HOST` /
+   `DB_DATABASE` / credentials left unforced so the job supplies them. PHPUnit has no include
+   mechanism, so the duplication is unavoidable — **the two files must be kept in sync**, and
+   both say so at the top.
+
+   The alternative, dropping `force` from the DB lines in `phpunit.xml`, was rejected: it
+   would let an ambient `DB_CONNECTION` in a developer's shell silently point the suite at a
+   real database, and `RefreshDatabase` would then wipe it.
+2. **No CI image rebuild is needed.** `docker/ci/Dockerfile` already installs `pdo_pgsql`,
+   which avoids triggering the `build:ci-image` job.
+
+**Verified locally before committing**, against a throwaway PG 17.9 container on the compose
+network — the same recipe as the Step 3 schema check:
+
+- Whole suite green on Postgres: **137 passed** in ~14s (SQLite runs it in ~7s, so the second
+  job roughly doubles the test stage and nothing more).
+- The dev database was untouched — confirmed by counting its rows afterwards, and by the
+  throwaway holding the 20-table migrated schema.
+- **The job has teeth on Postgres, not just on SQLite.** Swapping the two partial indexes back
+  to a single composite `UNIQUE(user_id, course_id, video_id)` fails exactly
+  `test_a_user_cannot_have_two_threads_on_the_same_course` and nothing else, with
+  `Failed asserting that exception of type "Illuminate\Database\QueryException" is thrown`.
+
 ## Environment notes
 
 - **Port 5432.** Three host PG clusters exist — 10 on **5432**, 12 on **5433**, 14 on
@@ -1291,6 +1342,7 @@ migration) → transcripts → retrieval.
 | 2026-08-19 | `countTokens()` joins the seam rather than the command calling the SDK | Keeps "nothing outside `App\Services\Ai` touches the SDK" true, and Step 7's token-based history cap needs the method anyway |
 | 2026-08-19 | Lesson list mirrors the course page, `is_published` ignored | Nothing in the app reads that column; a tutor whose lesson list differs from the student's is worse than one that matches |
 | 2026-08-19 | Prompt caps (50 lessons, 1,500 description chars) | Prompt size should be a property of the code, not of whatever a course grows into |
+| 2026-08-20 | Postgres in CI gets its own PHPUnit config, not a relaxed `phpunit.xml` | `force="true"` overrides real env vars so job `variables:` cannot redirect the connection. Dropping `force` instead would let an ambient `DB_CONNECTION` point a developer's `RefreshDatabase` run at a real database |
 | 2026-08-18 | Verified-email enforced in the Form Request, not by fixing `User` | The `verified` middleware is inert app-wide; making `User` implement `MustVerifyEmail` would change behaviour on `/dashboard` and the profile routes, which is a separate decision |
 
 ## Open questions for later
