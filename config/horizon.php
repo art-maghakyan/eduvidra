@@ -257,6 +257,27 @@ return [
             'timeout' => 90,
             'nice' => 0,
         ],
+        // AI tutor background work: conversation titles and history
+        // summarisation. Never the chat reply itself — the student is waiting
+        // on that, and a queued job cannot stream into an open connection.
+        //
+        // tries is 1, not 3: every attempt spends money, and neither job is
+        // worth paying for three times. A failed title just stays null.
+        'supervisor-5' => [
+            'connection' => 'redis',
+            'queue' => ['ai'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            // Longer than the others: these call the Anthropic API.
+            'timeout' => 180,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -282,6 +303,10 @@ return [
                 'minProcesses' => 1,
                 'maxProcesses' => 2,
             ],
+            'supervisor-5' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
         ],
 
         'local' => [
@@ -300,6 +325,10 @@ return [
             'supervisor-4' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 2,
+            ],
+            'supervisor-5' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
             ],
         ],
     ],
