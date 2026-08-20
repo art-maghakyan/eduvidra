@@ -179,6 +179,106 @@ class AiChatBudgetTest extends TestCase
         $this->assertStringContainsString(TutorPrompt::TRIMMED_NOTICE, TutorPrompt::forCourse($course, true));
     }
 
+    public function test_a_thread_resumed_after_a_long_silence_replays_only_the_new_turns(): void
+    {
+        // Three turns two months ago, then two turns today. A student coming
+        // back after that long is almost never continuing the old topic.
+        $conversation = $this->datedThread([60, 59, 58, 0, 0]);
+
+        $replay = (new ConversationHistory(12000, 6000, 14))->forConversation($conversation);
+
+        $this->assertSame(
+            ['Question 4', 'Answer 4', 'Question 5', 'Answer 5'],
+            array_column($replay->messages, 'content'),
+        );
+
+        // Dropped, not lost: `trimmed` is what puts the notice in the prompt and
+        // `oldestKeptId` is what tells the summariser where its work ends.
+        $this->assertTrue($replay->trimmed);
+        $this->assertSame(
+            $conversation->messages()->orderBy('id')->get()[6]->id,
+            $replay->oldestKeptId,
+        );
+    }
+
+    public function test_a_thread_used_steadily_is_never_cut_by_the_gap(): void
+    {
+        // A turn every other day is continuous work, not a fresh start.
+        $conversation = $this->datedThread([8, 6, 4, 2, 0]);
+
+        $replay = (new ConversationHistory(12000, 6000, 14))->forConversation($conversation);
+
+        $this->assertFalse($replay->trimmed);
+        $this->assertCount(10, $replay->messages);
+    }
+
+    public function test_only_the_most_recent_silence_cuts_the_replay(): void
+    {
+        // Two gaps. Cutting at the older one would replay a stale topic the
+        // student has already walked away from once.
+        $conversation = $this->datedThread([120, 119, 60, 59, 0]);
+
+        $replay = (new ConversationHistory(12000, 6000, 14))->forConversation($conversation);
+
+        $this->assertSame(['Question 5', 'Answer 5'], array_column($replay->messages, 'content'));
+    }
+
+    public function test_the_gap_cut_is_off_when_the_gap_is_zero(): void
+    {
+        $conversation = $this->datedThread([60, 59, 58, 0, 0]);
+
+        $replay = (new ConversationHistory(12000, 6000, 0))->forConversation($conversation);
+
+        $this->assertFalse($replay->trimmed);
+        $this->assertCount(10, $replay->messages);
+    }
+
+    public function test_a_gap_cut_replay_still_starts_with_a_user_turn(): void
+    {
+        $conversation = $this->datedThread([60, 0]);
+
+        $replay = (new ConversationHistory(12000, 6000, 14))->forConversation($conversation);
+
+        // The API rejects a messages array that opens with an assistant turn.
+        $this->assertSame('user', $replay->messages[0]['role']);
+    }
+
+    /**
+     * A thread whose turns land on given days ago, oldest first.
+     *
+     * Both messages in a turn share its timestamp, so the gap always falls
+     * between turns rather than inside one.
+     *
+     * @param  list<int>  $daysAgo
+     */
+    private function datedThread(array $daysAgo): Conversation
+    {
+        $course = $this->makeCourse();
+        $student = $this->student();
+
+        $conversation = Conversation::create([
+            'user_id' => $student->id,
+            'course_id' => $course->id,
+            'video_id' => null,
+        ]);
+
+        foreach ($daysAgo as $index => $days) {
+            $turn = $index + 1;
+            $at = now()->subDays($days);
+
+            foreach ([['user', "Question {$turn}"], ['assistant', "Answer {$turn}"]] as [$role, $content]) {
+                Message::create([
+                    'conversation_id' => $conversation->id,
+                    'role' => $role,
+                    'content' => $content,
+                    'output_tokens' => $role === 'assistant' ? 50 : 0,
+                ])->forceFill(['created_at' => $at])->save();
+            }
+        }
+
+        return $conversation;
+    }
+
     private function threadWith(int $turns, int $outputTokens = 50, int $questionChars = 0): Conversation
     {
         $course = $this->makeCourse();

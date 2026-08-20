@@ -131,4 +131,32 @@ return [
 
     'history_token_floor' => (int) env('ANTHROPIC_HISTORY_TOKEN_FLOOR', 6000),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Idle gap
+    |--------------------------------------------------------------------------
+    |
+    | Days of silence after which the replay treats the thread as a fresh start.
+    |
+    | There is exactly one permanent thread per (student, course) and nothing
+    | ever resets it. A student returning three hours later almost certainly
+    | wants continuity; one returning two months later on a different topic
+    | almost certainly does not, and today has no way to say so.
+    |
+    | Rather than add a "new conversation" button — which would mean a second
+    | thread per (user, course), and therefore a change to the partial unique
+    | index — the replay simply starts after the most recent gap longer than
+    | this. The row, the index and the audit trail are all untouched; only the
+    | window handed to the model moves.
+    |
+    | Nothing is lost: the turns before the gap are exactly what
+    | SummariseConversationHistory already covers, so the tutor keeps knowing
+    | who it is talking to while dropping the stale detail.
+    |
+    | Set to 0 to disable and replay the thread from the beginning as before.
+    |
+    */
+
+    'history_gap_days' => (int) env('ANTHROPIC_HISTORY_GAP_DAYS', 14),
+
 ];

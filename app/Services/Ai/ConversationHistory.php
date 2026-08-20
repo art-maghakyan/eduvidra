@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Models\Conversation;
 use App\Models\Message;
+use Illuminate\Support\Collection;
 
 /**
  * Decides how much of a thread to replay.
@@ -32,6 +33,7 @@ class ConversationHistory
     public function __construct(
         private readonly int $budget,
         private readonly int $floor,
+        private readonly int $gapDays = 0,
     ) {}
 
     public static function fromConfig(): self
@@ -39,23 +41,24 @@ class ConversationHistory
         return new self(
             (int) config('anthropic.history_token_budget'),
             (int) config('anthropic.history_token_floor'),
+            (int) config('anthropic.history_gap_days'),
         );
     }
 
     public function forConversation(Conversation $conversation): ReplayedHistory
     {
-        $messages = $conversation->messages()
+        $all = $conversation->messages()
             ->orderBy('id')
-            ->get(['id', 'role', 'content', 'output_tokens']);
+            ->get(['id', 'role', 'content', 'output_tokens', 'created_at']);
+
+        // A long silence is a topic boundary, so the replay starts after it.
+        // Everything before is left to the summariser rather than re-sent.
+        $messages = $this->afterLastIdleGap($all);
 
         $total = $messages->sum(fn (Message $m) => $this->tokensFor($m));
 
         if ($total <= $this->budget) {
-            return new ReplayedHistory(
-                $this->shape($messages->all()),
-                false,
-                $messages->first()?->id,
-            );
+            return $this->result($messages->all(), $all);
         }
 
         // Over budget: keep the newest turns that fit under the floor, not just
@@ -76,6 +79,65 @@ class ConversationHistory
             array_unshift($kept, $message);
         }
 
+        return $this->result($kept, $all);
+    }
+
+    /**
+     * Drop everything before the most recent silence longer than the gap.
+     *
+     * A student returning after two months on a different topic gets a tutor
+     * still primed on the old one, and there is no way for them to say so:
+     * there is exactly one permanent thread per (user, course) and nothing
+     * resets it. Cutting the replay at the gap gives them a fresh start without
+     * a second conversation row — which would mean changing the partial unique
+     * index, and therefore a migration.
+     *
+     * The dropped turns are not lost. They are exactly what
+     * SummariseConversationHistory covers, so the tutor still knows who it is
+     * talking to; only the stale detail goes.
+     *
+     * @param  Collection<int, Message>  $messages
+     * @return Collection<int, Message>
+     */
+    private function afterLastIdleGap(Collection $messages): Collection
+    {
+        if ($this->gapDays <= 0 || $messages->count() < 2) {
+            return $messages;
+        }
+
+        $ordered = $messages->values();
+
+        for ($i = $ordered->count() - 1; $i > 0; $i--) {
+            $previous = $ordered[$i - 1]->created_at;
+            $current = $ordered[$i]->created_at;
+
+            if ($previous === null || $current === null) {
+                continue;
+            }
+
+            if ($previous->copy()->addDays($this->gapDays)->lt($current)) {
+                return $ordered->slice($i)->values();
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * Normalise a kept set into a ReplayedHistory.
+     *
+     * Both paths above can leave the list in a shape the API rejects, so the
+     * guards live here rather than being duplicated.
+     *
+     * @param  list<Message>  $kept
+     * @param  Collection<int, Message>  $all  Everything in
+     *                                         the thread, so
+     *                                         `trimmed` reflects
+     *                                         the gap cut as well
+     *                                         as the budget trim.
+     */
+    private function result(array $kept, Collection $all): ReplayedHistory
+    {
         // The API requires the first message to be from the user; trimming can
         // easily leave an assistant turn stranded at the front.
         while ($kept !== [] && $kept[0]->role !== 'user') {
@@ -88,14 +150,14 @@ class ConversationHistory
         // old thread does. An empty messages array is a 400 from the API, so
         // fall back to the most recent question.
         if ($kept === []) {
-            $lastQuestion = $messages->last(fn (Message $m) => $m->role === 'user');
+            $lastQuestion = $all->last(fn (Message $m) => $m->role === 'user');
 
             $kept = $lastQuestion === null ? [] : [$lastQuestion];
         }
 
         return new ReplayedHistory(
             $this->shape($kept),
-            count($kept) < $messages->count(),
+            count($kept) < $all->count(),
             $kept === [] ? null : $kept[0]->id,
         );
     }
