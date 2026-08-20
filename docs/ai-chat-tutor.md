@@ -14,7 +14,7 @@ context record; re-read it before starting or resuming work.
 | **Gate passed** | **Step 0** — `200` + `Eduvidra API OK` from **both** host and `app` container, 2026-08-18. Model alias resolved to `claude-haiku-4-5-20251001`. Cost: ~$0.00014 for both calls (17 in / 9 out each). Container egress, CA certs and the `.env`-sourcing command all confirmed working. |
 | **Unblocked next** | Merge to `master`. Two of the open decisions were settled on 2026-08-20 — **Postgres in CI** (decision 2) and the **thread-reset question**, which turned out to need no migration after all. What remains before merge is the four blocking production-environment items in §3, plus `pm.max_children = 5` (decision 6), which is the one that would bite in production first. |
 | **Biggest find so far** | **The Anthropic PHP SDK does not stream over TLS at its default read size.** It reads the body in 8,192-byte blocks and PHP's OpenSSL stream fills that buffer before returning, so a whole reply — well under 8 KB — arrived in a single read *after* generation finished. It looked exactly like streaming from the outside and was not. Fixed in `App\Services\Ai\IncrementalStreamTransporter`; see Step 6. |
-| **Security gap found** | `App\Models\User` does not implement the `MustVerifyEmail` **contract** (the import is commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuits and the **`verified` middleware is a no-op app-wide** — `/dashboard` and the profile routes included. The tutor enforces it itself in `SendChatMessageRequest::authorize()`. Making `User` implement the contract would fix it globally but changes behaviour across the app, so it is left as a deliberate decision. |
+| **Security gap found — now fixed** | `App\Models\User` did not implement the `MustVerifyEmail` **contract** (the import was commented out at `app/Models/User.php:5`), so Laravel's `EnsureEmailIsVerified` short-circuited and the **`verified` middleware was a no-op app-wide** — `/dashboard` and the profile routes included. **Closed 2026-08-20**: `User` now implements the contract. See *Email verification* below. |
 | **Budget** | $5 of prepaid credit, added 2026-08-18. Auto-reload **off**, so the balance is a hard ceiling. At ~$0.004/turn that is ~1,200 turns. Spent to date: **~$0.03**. `ANTHROPIC_DRIVER` stays `fake` outside deliberate billed runs. |
 | **Known flakiness** | Container egress to `api.anthropic.com` intermittently fails outright (`Connection refused`, or a connect that times out after 4s) and then works again seconds later. It corrupted two timing measurements during Step 6 before being recognised. When a real call behaves strangely, re-run it before theorising. |
 
@@ -171,7 +171,7 @@ that must be true before `feat/ai-chat-tutor` goes to `master`.
   delete it if you want a clean local dataset.
 - CI runs `vendor/bin/pint --test` and `php artisan test`, and now also `php artisan test -c
   phpunit.pgsql.xml` against Postgres 17. All three were green at the last commit:
-  **142 passed on both engines, Pint clean on 125 files.**
+  **142 passed (417 assertions) on both engines, Pint clean on 125 files.**
 
 #### First thing to watch after deploying
 
@@ -184,7 +184,7 @@ balance is the other.
 
 | | Decision | Why it is not already done |
 |---|---|---|
-| 1 | Make `User` implement `MustVerifyEmail` | Fixes the inert `verified` middleware app-wide, but immediately starts gating `/dashboard` and the profile routes and mailing existing unverified users. A product decision, not a side effect of this feature |
+| 1 | ~~Make `User` implement `MustVerifyEmail`~~ | **Done 2026-08-20** — see *Email verification* |
 | 2 | ~~Add Postgres to CI~~ | **Done 2026-08-20** — `phpunit:pgsql` job + `phpunit.pgsql.xml`. See *Postgres in CI* |
 | 3 | Permanently free port 5432 | `sudo systemctl disable --now postgresql`, or republish the container as `5435:5432` (5433 and 5434 are taken by clusters 12 and 14) |
 | 4 | `composer audit` — 30 advisories across 10 packages | Pre-existing, unrelated to this feature |
@@ -1288,6 +1288,60 @@ has no single response time in the access log, so p95 latency has nowhere else t
 **`CacheReadTokens` is the number to watch first** — it decides whether the cache TTL should
 move from 5 minutes to 1 hour, which is the one open tuning question Step 7 left behind.
 
+## Email verification — enabled 2026-08-20
+
+Decision 1, closed. `App\Models\User` now implements `Illuminate\Contracts\Auth\MustVerifyEmail`.
+
+**The UI already existed and was unreachable.** `resources/js/Pages/Auth/VerifyEmail.vue`, three
+controllers, four routes in `routes/auth.php:51-60`, and `event(new Registered($user))` in
+`RegisteredUserController:53` were all present since the Breeze scaffold. The only missing piece
+was the contract on the model — and both halves of the framework gate on it:
+
+```php
+// SendEmailVerificationNotification, the listener on Registered
+if ($event->user instanceof MustVerifyEmail && ! $event->user->hasVerifiedEmail()) {   // never true
+
+// EnsureEmailIsVerified, the `verified` middleware
+($request->user() instanceof MustVerifyEmail && ! $request->user()->hasVerifiedEmail())  // never true
+```
+
+So no verification mail was ever sent, and nothing ever redirected anyone to
+`verification.notice`. The page had no route into it.
+
+The subtlety worth recording: `Illuminate\Foundation\Auth\User` already pulls in the
+**`MustVerifyEmail` trait**, so `hasVerifiedEmail()` and `markEmailAsVerified()` always worked
+correctly. Only the **contract** — the marker interface the framework checks — was absent. Trait
+present, interface missing. Breeze ships it commented out because verification is opt-in.
+
+**Verified end to end over HTTP**, with `MAIL_MAILER` overridden to `log`:
+
+| Step | Result |
+|---|---|
+| Register | 302 → `/two-factor/setup`; verification mail generated with a valid signed URL |
+| Unverified user requests `/dashboard` | **302 → `/verify-email`** (previously passed straight through) |
+| `/verify-email` | **200**, renders `Auth/VerifyEmail` |
+| Tutor panel while unverified | `chat.available = false` |
+| Resend (`POST /email/verification-notification`) | 302, fresh signed URL |
+| Click the signed link | 302 → `/dashboard`, `email_verified_at` set |
+| `/dashboard`, tutor panel after | **200**, `chat.available = true` |
+
+**Two things that will surprise you.**
+
+1. **Registration does not log the user in.** The 2FA routes live in the **guest** group
+   (`routes/auth.php:27-35`), so a new registrant is handed to `/two-factor/setup` as a guest and
+   only becomes authenticated after completing setup. Verification is therefore the *second*
+   gate a new user meets, not the first.
+2. **`MAIL_MAILER` cannot be overridden in `.env` in dev.** It is set in the `x-app-environment`
+   map in `docker-compose.override.yml`, and a real environment variable beats `.env` under
+   Laravel's immutable dotenv. Editing `.env` silently does nothing and mail still goes out over
+   real SMTP. Change the compose map and recreate the container instead.
+
+One test changed: `test_an_unverified_user_cannot_use_the_tutor` asserted a `403` from
+`SendChatMessageRequest::authorize()` and now asserts the `302` from the middleware, which fires
+first. Its own comment had predicted exactly this. The security property is unchanged — nothing
+is persisted and no tokens are spent either way — and the Form Request keeps its check as belt
+and braces.
+
 ## Postgres in CI — built 2026-08-20
 
 Decision 2, closed. The default `phpunit` job runs in-memory SQLite, which is fast but cannot
@@ -1395,7 +1449,8 @@ migration) → transcripts → retrieval.
 | 2026-08-20 | **Thread reset is a replay-window cut, not a schema change** | All three options previously considered assumed a second conversation row, and therefore a migration to the partial unique index. Moving the window instead of the thread gets a fresh start after a long silence with the row, the index and the audit trail untouched |
 | 2026-08-20 | The idle gap is 14 days, and the cut runs before the token budget | Two weeks of silence is a topic boundary; a few days is continuous work. The gap is semantic and the budget is a cost cap on whatever survives it, so the order matters |
 | 2026-08-20 | Postgres in CI gets its own PHPUnit config, not a relaxed `phpunit.xml` | `force="true"` overrides real env vars so job `variables:` cannot redirect the connection. Dropping `force` instead would let an ambient `DB_CONNECTION` point a developer's `RefreshDatabase` run at a real database |
-| 2026-08-18 | Verified-email enforced in the Form Request, not by fixing `User` | The `verified` middleware is inert app-wide; making `User` implement `MustVerifyEmail` would change behaviour on `/dashboard` and the profile routes, which is a separate decision |
+| 2026-08-20 | **`User` implements `MustVerifyEmail`** | Closes the app-wide gap. The whole verification UI already existed and was unreachable, because both the `Registered` listener and `EnsureEmailIsVerified` gate on `instanceof` the contract. One line switched the flow on; the Form Request's own check stays as belt and braces |
+| 2026-08-18 | ~~Verified-email enforced in the Form Request, not by fixing `User`~~ | **Superseded 2026-08-20.** At the time the `verified` middleware was inert app-wide and fixing it was a separate decision; that decision has now been taken |
 
 ## Open questions for later
 

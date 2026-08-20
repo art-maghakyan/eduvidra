@@ -109,13 +109,14 @@ class AiChatTest extends TestCase
         $user = User::factory()->unverified()->create();
         $user->assignRole(RbacRole::STUDENT->value);
 
-        // 403 from SendChatMessageRequest::authorize(), not a redirect from the
-        // `verified` middleware — that middleware is inert while User does not
-        // implement the MustVerifyEmail contract. If User ever does, this
-        // becomes a redirect to verification.notice and the assertion changes.
+        // A redirect from the `verified` middleware, which now fires because User
+        // implements MustVerifyEmail. Before that it was inert app-wide and the
+        // request got as far as SendChatMessageRequest::authorize(), which
+        // refused it with a 403. Either way nothing is persisted and no tokens
+        // are spent; the belt-and-braces check in the Form Request stays.
         $this->actingAs($user)
             ->post("/courses/{$course->slug}/chat", ['message' => 'Hi'])
-            ->assertForbidden();
+            ->assertRedirect(route('verification.notice'));
 
         $this->assertSame(0, Message::count());
     }
